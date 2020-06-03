@@ -1,0 +1,13 @@
+# WARNING: do not use this file directly to create the environment. Use the appropriate makefile target 'create-env'
+name: n2n
+channels:
+  - pytorch
+  - conda-forge
+dependencies:
+  - python=3.7
+  - pytorch=<PYTORCH_VERSION>         *ERROR* Use make to generate final environment.yml
+  - cudatoolkit=<CUDATOOLKIT_VERSION> *ERROR* Use make to generate final environment.yml
+  - torchvision
+  - flake8
+  - black
+  - mlflow
