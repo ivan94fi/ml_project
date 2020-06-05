@@ -1,4 +1,4 @@
-.PHONY: clean clean-build clean-pyc install install-dev uninstall lint format conda-install conda-remove create-env remove-env check-env
+.PHONY: clean clean-build clean-pyc install install-dev uninstall lint format conda-install conda-remove create-env remove-env check-env start-db stop-db ensure-mlflow-tracking-uri start-mlflow-ui start-mlflow-server
 
 # Verbose mode. Call make with V=1 to enable targets log: e.g. 'make install V=1'
 $(V).SILENT:
@@ -112,6 +112,30 @@ remove-env:
 ## Test that project and python environment are setup correctly
 check-env:
 	python scripts/check_environment.py
+
+# Start postgresql server for logging: only used in development server
+start-db:
+	pg_ctl -D $(HOME)/.local/pgsql/data -l $(HOME)/postgresql-12.3/logs/logfile start
+
+# Stop postgresql sever: only used in development server
+stop-db:
+	pg_ctl stop -D $(HOME)/.local/pgsql/data/
+
+ensure-mlflow-tracking-uri:
+ifndef MLFLOW_TRACKING_URI
+	echo "First define the tracking server uri as a variable, for example:"
+	echo "    export MLFLOW_TRACKING_URI=\"postgresql://mlflow:pass@localhost/mlflowdb\""
+	echo "or:"
+	echo "    export MLFLOW_TRACKING_URI=./mlruns"
+	echo ""
+	exit 1
+endif
+
+start-mlflow-ui: ensure-mlflow-tracking-uri
+	mlflow ui --backend-store-uri $(MLFLOW_TRACKING_URI)
+
+start-mlflow-server: ensure-mlflow-tracking-uri
+	mlflow server --backend-store-uri $(MLFLOW_TRACKING_URI) --default-artifact-root ./mlruns --static-prefix /ml-project
 
 #################################################################################
 # Self Documenting Commands                                                     #
