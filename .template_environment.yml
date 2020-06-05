@@ -11,3 +11,5 @@ dependencies:
   - flake8
   - black
   - mlflow
+  - tensorboardx
+  - psycopg2
