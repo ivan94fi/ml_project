@@ -1,11 +1,14 @@
-.PHONY: clean clean-build clean-pyc install install-dev uninstall lint format conda-install conda-remove create-env remove-env check-env start-db stop-db ensure-mlflow-tracking-uri start-mlflow-ui start-mlflow-server
-
 # Verbose mode. Call make with V=1 to enable targets log: e.g. 'make install V=1'
 $(V).SILENT:
 
 #################################################################################
 # GLOBALS                                                                       #
 #################################################################################
+
+SHELL := bash
+.ONESHELL:
+MAKEFLAGS += --no-builtin-rules
+MAKEFLAGS += --warn-undefined-variables
 
 PROJECT_DIR := $(shell dirname $(realpath $(lastword $(MAKEFILE_LIST))))
 ENV_NAME := $(shell sed -nE 's/^.*name:\s*(.*)$$/\1/p' .template_environment.yml)
@@ -20,9 +23,11 @@ endif
 # COMMANDS                                                                      #
 #################################################################################
 
+.PHONY: clean
 ## Remove build and compiled python artifacts
 clean: clean-build clean-pyc
 
+.PHONY: clean-build
 ## Remove build artifacts
 clean-build:
 	rm -fr build/
@@ -31,32 +36,50 @@ clean-build:
 	find . -name '*.egg-info' -exec rm -fr {} +
 	find . -name '*.egg' -exec rm -f {} +
 
+.PHONY: clean-pyc
 ## Remove python compiled artifacts
 clean-pyc:
 	find . -type f -name "*.py[co]" -delete
 	find . -type d -name "__pycache__" -delete
 
+.PHONY: install
 ## Install the package to the active Python's site-packages
 install: clean
 	pip install .
 
+.PHONY: install-dev
 ## Install the package in editable form for development
 install-dev: clean
 	pip install -e .
 
+.PHONY: uninstall
 ## Uninstall the package
 uninstall:
 	pip uninstall -y ml_project
 	$(MAKE) clean
 
-## Lint using flake8
-lint:
-	flake8 --exit-zero src
+.PHONY: lint
+## Lint using both pylint and flake8
+lint: lint-pylint lint-flake8
 
+.PHONY: lint-pylint
+## Lint using pylint
+lint-pylint:
+	echo "--------------------- PYLINT ---------------------"
+	pylint --exit-zero --rcfile=setup.cfg src/ml_project
+
+.PHONY: lint-flake8
+## Lint using flake8
+lint-flake8:
+	echo "--------------------- FLAKE8 ---------------------"
+	flake8 --exit-zero src/ml_project
+
+.PHONY: format
 ## Format using black
 format:
-	black src
+	black src/ml_project
 
+.PHONY: conda-install
 ## Install Miniconda package manager
 conda-install:
 ifeq (True,$(HAS_CONDA))
@@ -65,6 +88,7 @@ else
 	scripts/install_conda.sh
 endif
 
+.PHONY: conda-remove
 ## Remove Miniconda package manager
 conda-remove:
 	echo "Due to how conda works it is not possible to entirely remove it automatically."
@@ -79,6 +103,7 @@ conda-remove:
 	echo "    Remove modifications from .bashrc file"
 	echo ""
 
+.PHONY: create-env
 ## Set up conda environment: pytorch, cudatoolkit and torchvision versions must be defined by the user as they depend on the installed cuda runtime version
 create-env:
 ifeq (True,$(HAS_CONDA))
@@ -105,22 +130,27 @@ else
 	echo "Error: conda not found. Install with 'make conda-install'"
 endif
 
+.PHONY: remove-env
 ## Remove conda environment
 remove-env:
 	conda env remove --name $(ENV_NAME)
 
+.PHONY: check-env
 ## Test that project and python environment are setup correctly
 check-env:
 	python scripts/check_environment.py
 
+.PHONY: start-db
 # Start postgresql server for logging: only used in development server
 start-db:
 	pg_ctl -D $(HOME)/.local/pgsql/data -l $(HOME)/postgresql-12.3/logs/logfile start
 
+.PHONY: stop-db
 # Stop postgresql sever: only used in development server
 stop-db:
 	pg_ctl stop -D $(HOME)/.local/pgsql/data/
 
+.PHONY: ensure-mlflow-tracking-uri
 ensure-mlflow-tracking-uri:
 ifndef MLFLOW_TRACKING_URI
 	echo "First define the tracking server uri as a variable, for example:"
@@ -131,9 +161,11 @@ ifndef MLFLOW_TRACKING_URI
 	exit 1
 endif
 
+.PHONY: start-mlflow-ui
 start-mlflow-ui: ensure-mlflow-tracking-uri
 	mlflow ui --backend-store-uri $(MLFLOW_TRACKING_URI)
 
+.PHONY: start-mlflow-server
 start-mlflow-server: ensure-mlflow-tracking-uri
 	mlflow server --backend-store-uri $(MLFLOW_TRACKING_URI) --default-artifact-root ./mlruns --static-prefix /ml-project
 
