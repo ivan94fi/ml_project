@@ -8,7 +8,6 @@ $(V).SILENT:
 SHELL := bash
 .ONESHELL:
 MAKEFLAGS += --no-builtin-rules
-MAKEFLAGS += --warn-undefined-variables
 
 PROJECT_DIR := $(shell dirname $(realpath $(lastword $(MAKEFILE_LIST))))
 ENV_NAME := $(shell sed -nE 's/^.*name:\s*(.*)$$/\1/p' .template_environment.yml)
