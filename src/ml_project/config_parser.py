@@ -1,8 +1,17 @@
 """Functions for options parsing."""
 
 import argparse
+import re
 
-import torch
+
+def _check_torch_device(value):
+    match = re.match(r"(cpu|cuda(:\d)?)$", value)
+    if match is None:
+        raise argparse.ArgumentTypeError(
+            "Device argument '{}' cannot be parsed."
+            "\n    Accepted values: ['cpu', 'cuda:n']".format(value)
+        )
+    return match.group(0)
 
 
 def parse_config(args=None):
@@ -24,13 +33,14 @@ def parse_config(args=None):
         "reimplementation of Noise2Noise framework."
     )
     main_parser.add_argument(
-        "--device", action="store", default="cuda", type=torch.device
+        "--device", action="store", default="cuda", type=_check_torch_device
     )
 
     subparsers = main_parser.add_subparsers(
         title="subcommands",
         description="specify an action to perform",
         dest="command",
+        required=True,
         help="Use '<subcommand> --help' for additional help on each subcommand",
     )
     train_parser = subparsers.add_parser("train", help="Execute training procedure")
