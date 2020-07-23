@@ -159,11 +159,11 @@ def parse_config(args=None):
         help="Parse configuration, define dataloaders, and exit without training",
     )
     train_parser.add_argument(
-        "--train-size",
+        "--train-percentage",
         default=80,
-        type=int,
-        help="Percentage of the total examples to reserve for the train split. "
-        "The rest is reserved for validation",
+        type=lambda v: float(v) if "." in v else int(v),
+        help="Percentage of the total examples to reserve for the train split. The "
+        "rest is reserved for validation. The value must be in (0.0, 1.0] or (0, 100]",
     )
 
     test_parser = subparsers.add_parser(

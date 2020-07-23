@@ -27,11 +27,11 @@ TODO:
 # =========================================
 
 config = parse_config()
+config.torchvision_image_backend = torchvision.get_image_backend()
 
 print("Selected configuration")
 print("=" * 60)
 print(tabulate_config(config))
-print("torchvision image backend: {}".format(torchvision.get_image_backend()))
 print("=" * 60)
 
 transforms = Compose(
@@ -49,7 +49,7 @@ full_dataset = ImageNet(
 dataset = full_dataset.get_subset(end=config.num_examples)
 
 train_dataset, validation_dataset = dataset.split_train_validation(
-    train_percentage=config.train_size
+    train_percentage=config.train_percentage
 )
 print("train dataset size:", len(train_dataset))
 print("validation dataset size:", len(validation_dataset))
