@@ -34,20 +34,10 @@ print(tabulate_config(config))
 print("torchvision image backend: {}".format(torchvision.get_image_backend()))
 print("=" * 60)
 
-num_examples = 20
-epochs = 2
-input_size = 255
-stretch = False
-batch_size = 4
-shuffle = True
-num_workers = 0
-pin_memory = True
-train_percentage = 0.8
-
 transforms = Compose(
     [
-        ResizeIfTooSmall(size=input_size, stretch=stretch),
-        RandomCrop(size=input_size),
+        ResizeIfTooSmall(size=config.input_size, stretch=config.stretch),
+        RandomCrop(size=config.input_size),
         ToTensor(),
         Lambda(lambda sample: sample - 0.5),  # move the tensors in [-0.5, 0.5]
     ]
@@ -56,20 +46,20 @@ transforms = Compose(
 full_dataset = ImageNet(
     "/home/ivan94fi/Downloads/TIXATI/ILSVRC2012_img_val", transforms=transforms
 )
-dataset = full_dataset.get_subset(end=num_examples)
+dataset = full_dataset.get_subset(end=config.num_examples)
 
 train_dataset, validation_dataset = dataset.split_train_validation(
-    train_percentage=train_percentage
+    train_percentage=config.train_size
 )
 print("train dataset size:", len(train_dataset))
 print("validation dataset size:", len(validation_dataset))
 
 dataloader = DataLoader(
     train_dataset,
-    batch_size=batch_size,
-    shuffle=shuffle,
-    num_workers=num_workers,
-    pin_memory=pin_memory,
+    batch_size=config.batch_size,
+    shuffle=config.shuffle,
+    num_workers=config.workers,
+    pin_memory=config.pin_memory,
 )
 
 if config.dry_run:
@@ -79,9 +69,8 @@ if config.dry_run:
     sys.exit()
 
 train_loop_start = time.time()
-last_batch_index = math.floor(len(train_dataset) / batch_size) - 1
-print("last_batch_index:", last_batch_index)
-for epoch in range(epochs):
+last_batch_index = math.floor(len(train_dataset) / config.batch_size) - 1
+for epoch in range(config.epochs):
     print("epoch:", epoch)
     for batch_index, sample in enumerate(dataloader):
         print(batch_index, end=" " if batch_index != last_batch_index else "\n")
@@ -91,8 +80,8 @@ for epoch in range(epochs):
         assert sample.shape == (
             actual_batch_size,
             3,
-            input_size,
-            input_size,
+            config.input_size,
+            config.input_size,
         ), "sample has wrong shape"
 
 train_loop_end = time.time()
