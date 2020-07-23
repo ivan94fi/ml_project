@@ -2,14 +2,13 @@
 
 import math
 import time
-from pprint import pprint
 
 import torch
 import torchvision
 from torch.utils.data import DataLoader
 from torchvision.transforms import Compose, Lambda, RandomCrop, ToTensor
 
-from ml_project.config_parser import parse_config
+from ml_project.config_parser import parse_config, tabulate_config
 from ml_project.datasets import ImageNet
 from ml_project.procedures import test, train
 from ml_project.transforms import ResizeIfTooSmall
@@ -23,6 +22,7 @@ TODO:
 * add noise to samples and targets
 * train and test functions (loops inside)
 * noise in cli arguments
+* choose dataset
 """
 # =========================================
 
@@ -30,7 +30,7 @@ config = parse_config()
 
 print("Selected configuration")
 print("=" * 60)
-pprint(vars(config))
+print(tabulate_config(config))
 print("torchvision image backend: {}".format(torchvision.get_image_backend()))
 print("=" * 60)
 
@@ -42,13 +42,14 @@ batch_size = 4
 shuffle = True
 num_workers = 0
 pin_memory = True
+train_percentage = 0.8
 
 transforms = Compose(
     [
         ResizeIfTooSmall(size=input_size, stretch=stretch),
         RandomCrop(size=input_size),
         ToTensor(),
-        Lambda(lambda sample: sample - 0.5),
+        Lambda(lambda sample: sample - 0.5),  # move the tensors in [-0.5, 0.5]
     ]
 )
 
@@ -57,7 +58,9 @@ full_dataset = ImageNet(
 )
 dataset = full_dataset.get_subset(end=num_examples)
 
-train_dataset, validation_dataset = dataset.split_train_validation(train_percentage=0.8)
+train_dataset, validation_dataset = dataset.split_train_validation(
+    train_percentage=train_percentage
+)
 print("train dataset size:", len(train_dataset))
 print("validation dataset size:", len(validation_dataset))
 
@@ -68,6 +71,12 @@ dataloader = DataLoader(
     num_workers=num_workers,
     pin_memory=pin_memory,
 )
+
+if config.dry_run:
+    import sys
+
+    print("Dry run. Not executing training")
+    sys.exit()
 
 train_loop_start = time.time()
 last_batch_index = math.floor(len(train_dataset) / batch_size) - 1
@@ -82,8 +91,8 @@ for epoch in range(epochs):
         assert sample.shape == (
             actual_batch_size,
             3,
-            255,
-            255,
+            input_size,
+            input_size,
         ), "sample has wrong shape"
 
 train_loop_end = time.time()
