@@ -93,7 +93,7 @@ def parse_config(args=None):
     )
     main_parser.add_argument(
         "--input-size",
-        default=255,
+        default=256,
         type=int,
         help="Dimensions of the input layer of the network",
     )
