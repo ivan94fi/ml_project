@@ -5,7 +5,7 @@ import warnings
 
 from torch.utils.data import Dataset, random_split
 
-from ml_project.image_loaders import AccimageLoader, PillowLoader, accimage
+from ml_project.image_loaders import PillowLoader
 
 
 def is_image_file(filename):
@@ -39,8 +39,7 @@ class ImageNet(Dataset):
     transforms : callable, optional
         Functions or transforms to apply to data (the default is None).
     loader : AbstractImageLoader implementation, optional
-        The image loader to use: if None, use accimage where possible,
-        else fallback to pillow (the default is None).
+        The image loader to use: defaults to PillowLoader
 
     """
 
@@ -57,7 +56,7 @@ class ImageNet(Dataset):
         self.transforms = transforms
 
         if loader is None:
-            self.loader = AccimageLoader() if accimage is not None else PillowLoader()
+            self.loader = PillowLoader()
         else:
             self.loader = loader
 

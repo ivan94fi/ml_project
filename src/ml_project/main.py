@@ -4,7 +4,6 @@ import math
 import time
 
 import torch
-import torchvision
 from torch.utils.data import DataLoader
 from torchvision.transforms import Compose, Lambda, RandomCrop, ToTensor
 
@@ -27,7 +26,6 @@ TODO:
 # =========================================
 
 config = parse_config()
-config.torchvision_image_backend = torchvision.get_image_backend()
 
 print("Selected configuration")
 print("=" * 60)
