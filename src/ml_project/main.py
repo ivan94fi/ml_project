@@ -32,17 +32,21 @@ print("=" * 60)
 print(tabulate_config(config))
 print("=" * 60)
 
-transforms = Compose(
-    [
-        ResizeIfTooSmall(size=config.input_size, stretch=config.stretch),
-        RandomCrop(size=config.input_size),
-        ToTensor(),
-        Lambda(lambda sample: sample - 0.5),  # move the tensors in [-0.5, 0.5]
-    ]
-)
+common_transforms = [
+    ResizeIfTooSmall(size=config.input_size, stretch=config.stretch),
+    RandomCrop(size=config.input_size),
+    ToTensor(),
+    Lambda(lambda sample: sample - 0.5),  # move the tensors in [-0.5, 0.5]
+]
+
+# TODO: add noise to sample or target depending on config
+transforms = Compose(common_transforms)
+target_transforms = Compose(common_transforms)
 
 full_dataset = ImageNet(
-    "/home/ivan94fi/Downloads/TIXATI/ILSVRC2012_img_val", transforms=transforms
+    "/home/ivan94fi/Downloads/TIXATI/ILSVRC2012_img_val",
+    transforms=transforms,
+    target_transforms=target_transforms,
 )
 dataset = full_dataset.get_subset(end=config.num_examples)
 
@@ -70,17 +74,18 @@ train_loop_start = time.time()
 last_batch_index = math.floor(len(train_dataset) / config.batch_size) - 1
 for epoch in range(config.epochs):
     print("epoch:", epoch)
-    for batch_index, sample in enumerate(dataloader):
+    for batch_index, training_pair in enumerate(dataloader):
         print(batch_index, end=" " if batch_index != last_batch_index else "\n")
+        sample = training_pair.sample
+        target = training_pair.target
         assert isinstance(sample, torch.Tensor), "sample is not torch tensor"
+        assert isinstance(target, torch.Tensor), "target is not torch tensor"
         assert sample.dtype == torch.float32, "sample is not float"
+        assert target.dtype == torch.float32, "target is not float"
         actual_batch_size = len(sample)
-        assert sample.shape == (
-            actual_batch_size,
-            3,
-            config.input_size,
-            config.input_size,
-        ), "sample has wrong shape"
+        correct_shape = (actual_batch_size, 3, config.input_size, config.input_size)
+        assert sample.shape == correct_shape, "sample has wrong shape"
+        assert target.shape == correct_shape, "target has wrong shape"
 
 train_loop_end = time.time()
 print("train loop time: {:.5f}".format(train_loop_end - train_loop_start))

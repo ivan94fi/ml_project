@@ -2,6 +2,7 @@
 
 import os
 import warnings
+from collections import namedtuple
 
 from torch.utils.data import Dataset, random_split
 
@@ -11,6 +12,9 @@ from ml_project.image_loaders import PillowLoader
 def is_image_file(filename):
     """Check whether the given path refers to an image file using its exstension."""
     return os.path.splitext(filename)[1].lower() in [".jpg", ".jpeg", ".png"]
+
+
+TrainingPair = namedtuple("TrainingPair", ["sample", "target"])
 
 
 # See example of superresolution in torch examples
@@ -38,12 +42,22 @@ class ImageNet(Dataset):
         do not parse the root directory (the default is None).
     transforms : callable, optional
         Functions or transforms to apply to data (the default is None).
+    target_transforms : callable, optional
+        Functions or transforms to apply to targets (the default is None).
     loader : AbstractImageLoader implementation, optional
         The image loader to use: defaults to PillowLoader
 
     """
 
-    def __init__(self, root_dir, image_paths=None, transforms=None, loader=None):
+    # pylint: disable=too-many-arguments
+    def __init__(
+        self,
+        root_dir,
+        image_paths=None,
+        transforms=None,
+        target_transforms=None,
+        loader=None,
+    ):
         if not os.path.isdir(root_dir):
             raise ValueError("root_dir does not point to a valid directory")
         self.root_dir = root_dir
@@ -54,6 +68,7 @@ class ImageNet(Dataset):
             self.image_paths = image_paths
 
         self.transforms = transforms
+        self.target_transforms = target_transforms
 
         if loader is None:
             self.loader = PillowLoader()
@@ -61,13 +76,35 @@ class ImageNet(Dataset):
             self.loader = loader
 
     def __getitem__(self, idx):
-        """TEMP: Return a sample. TODO: return also a target."""
+        """
+        Return a training pair (sample, target).
+
+        The image at the specified index is read from disk, processed with the
+        predefined transforms and returned as a (sample, target) tuple.
+
+        Parameters
+        ----------
+        idx : int
+            the index of the image to read
+
+        Returns
+        -------
+        TrainingPair
+            the transformed (sample, target) tuple. The actual types and values of
+            the components depend on the applied transforms. Usually two tensors
+            should be returned as sample and target
+
+        """
         path = os.path.join(self.root_dir, self.image_paths[idx])
         sample = self.loader.load(path)
+        target = sample.copy()
 
         if self.transforms:
             sample = self.transforms(sample)
-        return sample
+        if self.target_transforms:
+            target = self.target_transforms(target)
+
+        return TrainingPair(sample=sample, target=target)
 
     def __len__(self):
         """Return the number of images in this dataset."""
@@ -96,6 +133,7 @@ class ImageNet(Dataset):
             self.root_dir,
             image_paths=subset_image_paths,
             transforms=self.transforms,
+            target_transforms=self.target_transforms,
             loader=self.loader,
         )
 
