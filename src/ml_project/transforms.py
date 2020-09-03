@@ -1,5 +1,6 @@
 """Transformations applied to samples."""
 
+import torch
 import torchvision.transforms.functional as TF
 
 
@@ -35,3 +36,30 @@ class ResizeIfTooSmall:
         return self.__class__.__name__ + "(size={}, stretch={})".format(
             self.size, self.stretch
         )
+
+
+class GaussianNoise:
+    """
+    Custom transform to add gaussian noise to a tensor.
+
+    Parameters
+    ----------
+    mean: float
+        The mean of the noise to apply
+    std: float
+        The standard deviation of the noise to apply
+
+    """
+
+    def __init__(self, mean=0.0, std=1.0):
+        self.mean = mean
+        self.std = std
+
+    def __call__(self, sample):
+        """Add gaussian noise to the input sample."""
+        noise = torch.randn(sample.shape) * self.std + self.mean
+        return sample + noise
+
+    def __repr__(self):
+        """Print an adequate representation of the class."""
+        return self.__class__.__name__ + "(mean={}, std={})".format(self.mean, self.std)
