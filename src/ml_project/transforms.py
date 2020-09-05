@@ -1,7 +1,12 @@
 """Transformations applied to samples."""
 
+import copy
+
 import torch
 import torchvision.transforms.functional as TF
+from torchvision.transforms import Compose
+
+from ml_project import utils
 
 
 class ResizeIfTooSmall:
@@ -46,20 +51,75 @@ class GaussianNoise:
     ----------
     mean: float
         The mean of the noise to apply
-    std: float
-        The standard deviation of the noise to apply
+    std: float or tuple of float
+        The standard deviation of the noise to apply. If this parameter is a
+        tuple, it is assumed to be the range from which the actual standard
+        deviation will be sampled randomly (uniformly) for each example
 
     """
 
     def __init__(self, mean=0.0, std=1.0):
         self.mean = mean
         self.std = std
+        self.std_is_range = False
+        try:
+            self.std = float(self.std)
+        except TypeError:
+            if isinstance(self.std, (tuple, list)):
+                if len(self.std) != 2:
+                    raise ValueError("std must be a tuple with size 2")
+                try:
+                    self.std = tuple(map(float, self.std))
+                    self.std_is_range = True
+                except ValueError as e:
+                    raise ValueError("std must be a tuple of floats") from e
+            else:
+                raise ValueError("std must be a float or tuple of floats")
 
     def __call__(self, sample):
         """Add gaussian noise to the input sample."""
-        noise = torch.randn(sample.shape) * self.std + self.mean
+        if self.std_is_range:
+            std = utils.uniform(self.std[0], self.std[1])
+        else:
+            std = self.std
+        noise = torch.randn(sample.shape) * std + self.mean
         return sample + noise
 
     def __repr__(self):
         """Print an adequate representation of the class."""
         return self.__class__.__name__ + "(mean={}, std={})".format(self.mean, self.std)
+
+
+class ComposeCopies(Compose):
+    """Compose several transforms together, by copying them.
+
+    This class behaves exactly as torchvision.transforms.Compose, but the
+    input transforms are deep-copied on initialization, with `copy.deepcopy` method.
+
+    This class also implements the iterable interface as a convenience.
+
+    Parameters
+    ----------
+    transforms : list
+        The transforms to compose
+
+    """
+
+    def __init__(self, transforms):
+        super().__init__(None)
+        self.transforms = copy.deepcopy(transforms)
+
+    def __getitem__(self, index):
+        """Return a copy of the `index`-th transform."""
+        return copy.deepcopy(self.transforms[index])
+
+    def __len__(self):
+        """Return the number of transforms embedded in this composition."""
+        return len(self.transforms)
+
+    def __repr__(self):
+        """Print an adequate representation of the class."""
+        format_string = super().__repr__()
+        return format_string.replace(
+            super().__class__.__name__, self.__class__.__name__, 1
+        )

@@ -5,22 +5,19 @@ import time
 
 import torch
 from torch.utils.data import DataLoader
-from torchvision.transforms import Compose, Lambda, RandomCrop, ToTensor
+from torchvision.transforms import Lambda, RandomCrop, ToTensor
 
 from ml_project.config_parser import parse_config, tabulate_config
 from ml_project.datasets import ImageNet
 from ml_project.procedures import test, train
-from ml_project.transforms import ResizeIfTooSmall
+from ml_project.transforms import ComposeCopies, GaussianNoise, ResizeIfTooSmall
 
 complete_start = time.time()
 
 # =========================================
 """
 TODO:
-* load targets
-* add noise to samples and targets
 * train and test functions (loops inside)
-* noise in cli arguments
 * choose dataset
 """
 # =========================================
@@ -39,13 +36,22 @@ common_transforms = [
     Lambda(lambda sample: sample - 0.5),  # move the tensors in [-0.5, 0.5]
 ]
 
-# TODO: add noise to sample or target depending on config
-transforms = Compose(common_transforms)
-target_transforms = Compose(common_transforms)
+if config.noise_type == "gaussian":
+    NoiseTransform = GaussianNoise
+else:
+    # TODO: add other types of noise
+    raise NotImplementedError
+
+sample_transforms = ComposeCopies(
+    [*common_transforms, NoiseTransform(std=config.std_range)]
+)
+target_transforms = ComposeCopies(
+    sample_transforms if config.train_mode == "n2n" else common_transforms
+)
 
 full_dataset = ImageNet(
     "/home/ivan94fi/Downloads/TIXATI/ILSVRC2012_img_val",
-    transforms=transforms,
+    transforms=sample_transforms,
     target_transforms=target_transforms,
 )
 dataset = full_dataset.get_subset(end=config.num_examples)

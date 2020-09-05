@@ -57,6 +57,19 @@ def tabulate_config(config, **tabulate_kwargs):
     return tabulate(table, headers=("Option", "Value"), **tabulate_kwargs)
 
 
+# pylint: disable=too-few-public-methods
+class ParseStdRange(argparse.Action):
+    """Check condition on std range passed from command line."""
+
+    def __call__(self, parser, namespace, values, option_string=None):
+        """Perfrom the check."""
+        if values[0] > values[1]:
+            parser.error("lower bound should be lesser than or equal to upper bound")
+        if values[0] > 100 or values[1] > 100:
+            parser.error("std values should be in [0,100]")
+        namespace.std_range = tuple(values)
+
+
 def parse_config(args=None):
     """Parse the configuration for the execution.
 
@@ -164,6 +177,34 @@ def parse_config(args=None):
         type=lambda v: float(v) if "." in v else int(v),
         help="Percentage of the total examples to reserve for the train split. The "
         "rest is reserved for validation. The value must be in (0.0, 1.0] or (0, 100]",
+    )
+
+    train_parser.add_argument(
+        "--train-mode",
+        default="n2n",
+        choices=["n2n", "n2c"],
+        type=str,
+        help="Train mode: 'n2n' to use corrupted samples and target;"
+        "'n2c' to use corrupted samples and clean targets",
+    )
+
+    noise_group = train_parser.add_argument_group("Noise settings")
+    noise_group.add_argument(
+        "--noise-type",
+        default="gaussian",
+        choices=["gaussian"],
+        type=str,
+        help="The type of noise to add to the examples/targets",
+    )
+
+    noise_group.add_argument(
+        "--std-range",
+        default=(0.0, 50.0),
+        nargs=2,
+        type=float,
+        metavar=("LOWER", "UPPER"),
+        action=ParseStdRange,
+        help="The standard deviation range of noise to be added",
     )
 
     test_parser = subparsers.add_parser(
