@@ -8,7 +8,7 @@ from torch.utils.data import DataLoader
 from torchvision.transforms import Lambda, RandomCrop, ToTensor
 
 from ml_project.config_parser import parse_config, tabulate_config
-from ml_project.datasets import ImageNet
+from ml_project.datasets import ImageFolderDataset
 from ml_project.procedures import test, train
 from ml_project.transforms import ComposeCopies, GaussianNoise, ResizeIfTooSmall
 
@@ -18,7 +18,6 @@ complete_start = time.time()
 """
 TODO:
 * train and test functions (loops inside)
-* choose dataset
 """
 # =========================================
 
@@ -49,7 +48,7 @@ target_transforms = ComposeCopies(
     sample_transforms if config.train_mode == "n2n" else common_transforms
 )
 
-full_dataset = ImageNet(
+full_dataset = ImageFolderDataset(
     config.dataset_root,
     transforms=sample_transforms,
     target_transforms=target_transforms,

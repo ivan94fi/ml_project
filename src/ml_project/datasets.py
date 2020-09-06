@@ -31,21 +31,9 @@ TrainingPair = namedtuple("TrainingPair", ["sample", "target"])
 
 ENV_VAR_DATASET_ROOT = "NOISE2NOISE_DATASET_ROOT"
 
-# See example of superresolution in torch examples
-class BSDS300(Dataset):
-    def __init__(self, root_dir, transforms=None):
-        self.root_dir = root_dir
-        self.transforms = transforms
 
-    def __getitem__(self, idx):
-        pass
-
-    def __len__(self):
-        return 0
-
-
-class ImageNet(Dataset):
-    """Custom torch.utils.data.Dataset subclass for ImageNet validation split.
+class ImageFolderDataset(Dataset):
+    """Custom torch.utils.data.Dataset subclass for loading images.
 
     Parameters
     ----------
@@ -143,7 +131,7 @@ class ImageNet(Dataset):
     def get_subset(self, start=0, end=None):
         """Create a copy of this dataset object with a subset of images."""
         subset_image_paths = self.image_paths[start:end]
-        return ImageNet(
+        return ImageFolderDataset(
             self.root_dir,
             image_paths=subset_image_paths,
             transforms=self.transforms,
