@@ -14,8 +14,22 @@ def is_image_file(filename):
     return os.path.splitext(filename)[1].lower() in [".jpg", ".jpeg", ".png"]
 
 
+def _read_directory_from_env():
+    """Try to read directory name from an environment variable."""
+    try:
+        directory = os.environ[ENV_VAR_DATASET_ROOT]
+        print("Dataset root picked from environment variable")
+        return directory
+    except KeyError:
+        raise ValueError(
+            "Dataset root directory not set. Use the cli option or "
+            "the environment variable " + ENV_VAR_DATASET_ROOT
+        )
+
+
 TrainingPair = namedtuple("TrainingPair", ["sample", "target"])
 
+ENV_VAR_DATASET_ROOT = "NOISE2NOISE_DATASET_ROOT"
 
 # See example of superresolution in torch examples
 class BSDS300(Dataset):
@@ -58,9 +72,9 @@ class ImageNet(Dataset):
         target_transforms=None,
         loader=None,
     ):
-        if not os.path.isdir(root_dir):
-            raise ValueError("root_dir does not point to a valid directory")
-        self.root_dir = root_dir
+        self.root_dir = _read_directory_from_env() if root_dir is None else root_dir
+        if not os.path.isdir(self.root_dir):
+            raise ValueError("dataset directory does not point to a valid directory")
 
         if image_paths is None:
             self._construct_image_paths()
