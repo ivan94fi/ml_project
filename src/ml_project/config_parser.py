@@ -143,6 +143,13 @@ def parse_config(args=None):
         "Supported values are y[es]/n[o], t[rue]/f[alse], case insensitive.",
     )
 
+    main_parser.add_argument(
+        "--dataset-root",
+        type=str,
+        help="The root directory of the dataset to use. This directory must "
+        "directly contain the images with no subdirectories",
+    )
+
     subparsers = main_parser.add_subparsers(
         title="Subcommands for procedures",
         description="Specify the procedure to execute",

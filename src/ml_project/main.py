@@ -50,7 +50,7 @@ target_transforms = ComposeCopies(
 )
 
 full_dataset = ImageNet(
-    "/home/ivan94fi/Downloads/TIXATI/ILSVRC2012_img_val",
+    config.dataset_root,
     transforms=sample_transforms,
     target_transforms=target_transforms,
 )
