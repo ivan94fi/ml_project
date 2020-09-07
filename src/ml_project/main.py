@@ -1,9 +1,6 @@
 """Main script of the project; all computations start from here."""
-
-import math
 import time
 
-import torch
 from torch.utils.data import DataLoader
 from torchvision.transforms import Lambda, RandomCrop, ToTensor
 
@@ -17,7 +14,10 @@ complete_start = time.time()
 # =========================================
 """
 TODO:
-* train and test functions (loops inside)
+* test function
+* other noise
+* model
+* logging
 """
 # =========================================
 
@@ -69,34 +69,12 @@ dataloader = DataLoader(
     pin_memory=config.pin_memory,
 )
 
-if config.dry_run:
-    import sys
-
-    print("Dry run. Not executing training")
-    sys.exit()
-
-train_loop_start = time.time()
-last_batch_index = math.floor(len(train_dataset) / config.batch_size) - 1
-for epoch in range(config.epochs):
-    print("epoch:", epoch)
-    for batch_index, training_pair in enumerate(dataloader):
-        print(batch_index, end=" " if batch_index != last_batch_index else "\n")
-        sample = training_pair.sample
-        target = training_pair.target
-        assert isinstance(sample, torch.Tensor), "sample is not torch tensor"
-        assert isinstance(target, torch.Tensor), "target is not torch tensor"
-        assert sample.dtype == torch.float32, "sample is not float"
-        assert target.dtype == torch.float32, "target is not float"
-        actual_batch_size = len(sample)
-        correct_shape = (actual_batch_size, 3, config.input_size, config.input_size)
-        assert sample.shape == correct_shape, "sample has wrong shape"
-        assert target.shape == correct_shape, "target has wrong shape"
-
-train_loop_end = time.time()
-print("train loop time: {:.5f}".format(train_loop_end - train_loop_start))
-print("complete script time: {:.5f}".format(train_loop_end - complete_start))
-
 if config.command == "train":
-    train(config)
+    train_loop_start = time.time()
+    train(dataloader, config)
+    train_loop_end = time.time()
+    print("train loop time: {:.5f}".format(train_loop_end - train_loop_start))
 elif config.command == "test":
     test(config)
+
+print("complete script time: {:.5f}".format(train_loop_end - complete_start))
