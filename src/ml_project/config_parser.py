@@ -52,7 +52,8 @@ def tabulate_config(config, **tabulate_kwargs):
     """
     config_dict = vars(config)
     table = map(
-        lambda v: (v[0], v[1] if v[1] is not None else "None"), config_dict.items()
+        lambda v: (v[0], v[1] if v[1] is not None else "None"),
+        sorted(config_dict.items()),
     )
     return tabulate(table, headers=("Option", "Value"), **tabulate_kwargs)
 
