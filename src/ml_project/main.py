@@ -16,7 +16,6 @@ complete_start = time.time()
 TODO:
 * test function
 * other noise
-* model
 * logging
 """
 # =========================================
