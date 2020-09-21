@@ -148,7 +148,9 @@ def parse_config(args=None):
         "--dataset-root",
         type=str,
         help="The root directory of the dataset to use. This directory must "
-        "directly contain the images with no subdirectories",
+        "directly contain the images with no subdirectories. As an alternative, "
+        "the environment variable NOISE2NOISE_DATASET_ROOT can be use to specify "
+        "the dataset root. If given, the command line option has precedence.",
     )
 
     subparsers = main_parser.add_subparsers(

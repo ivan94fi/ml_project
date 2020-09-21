@@ -38,7 +38,8 @@ class ImageFolderDataset(Dataset):
     Parameters
     ----------
     root_dir : str
-        Path to dataset directory (where extracted jpg images reside)
+        Path to dataset directory (where extracted jpg images reside). If it is
+        None, attempt to read the environment variable NOISE2NOISE_DATASET_ROOT
     image_paths : list of str, optional
         If passed, use these filenames to contruct the dataset,
         do not parse the root directory (the default is None).
