@@ -1,11 +1,13 @@
 """Main script of the project; all computations start from here."""
 import time
 
+import torch
 from torch.utils.data import DataLoader
 from torchvision.transforms import Lambda, RandomCrop, ToTensor
 
 from ml_project.config_parser import parse_config, tabulate_config
 from ml_project.datasets import ImageFolderDataset
+from ml_project.models import UNet
 from ml_project.procedures import test, train
 from ml_project.transforms import ComposeCopies, GaussianNoise, ResizeIfTooSmall
 
@@ -17,6 +19,7 @@ TODO:
 * test function
 * other noise
 * logging
+* learning rate cli option (annealing?)
 """
 # =========================================
 
@@ -68,12 +71,21 @@ dataloader = DataLoader(
     pin_memory=config.pin_memory,
 )
 
+net = UNet().to(config.device)
+
+criterion = torch.nn.MSELoss()
+
+optimizer = torch.optim.Adam(net.parameters(), lr=0.001)
+
 if config.command == "train":
+    print("Starting train loop")
+    print()
     train_loop_start = time.time()
-    train(dataloader, config)
+    train(dataloader, net, criterion, optimizer, config)
     train_loop_end = time.time()
-    print("train loop time: {:.5f}".format(train_loop_end - train_loop_start))
+    print()
+    print("Train loop time: {:.5f}".format(train_loop_end - train_loop_start))
 elif config.command == "test":
     test(config)
 
-print("complete script time: {:.5f}".format(train_loop_end - complete_start))
+print("Complete script time: {:.5f}".format(train_loop_end - complete_start))
