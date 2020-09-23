@@ -71,17 +71,27 @@ dataloader = DataLoader(
     pin_memory=config.pin_memory,
 )
 
+validation_dataloader = DataLoader(
+    validation_dataset,
+    batch_size=config.batch_size,
+    shuffle=config.shuffle,
+    num_workers=config.workers,
+    pin_memory=config.pin_memory,
+)
+
 net = UNet().to(config.device)
 
 criterion = torch.nn.MSELoss()
 
 optimizer = torch.optim.Adam(net.parameters(), lr=0.001)
 
+dataloaders = {"train": dataloader, "val": validation_dataloader}
+
 if config.command == "train":
-    print("Starting train loop")
     print()
+    print("Starting train loop")
     train_loop_start = time.time()
-    train(dataloader, net, criterion, optimizer, config)
+    train(dataloaders, net, criterion, optimizer, config)
     train_loop_end = time.time()
     print()
     print("Train loop time: {:.5f}".format(train_loop_end - train_loop_start))
