@@ -1,4 +1,7 @@
+# pylint: disable=too-many-locals
 """Functions that define train/test procedures."""
+import time
+
 import torch
 
 
@@ -35,10 +38,14 @@ def train(dataloaders, network, criterion, optimizer, config):
 
             running_loss = 0.0
 
+            start_time = time.time()
+
             for batch_index, data in enumerate(dataloaders[phase]):
                 sample = data.sample.to(config.device)
                 target = data.target.to(config.device)
                 batch_size = sample.shape[0]
+
+                prepare_time = start_time - time.time()
 
                 optimizer.zero_grad()
 
@@ -52,15 +59,22 @@ def train(dataloaders, network, criterion, optimizer, config):
 
                 running_loss += loss.item() * batch_size
 
+                process_time = start_time - time.time() - prepare_time
+
                 if phase == "train" and batch_index % 5 == 0:
                     print(
-                        "batch {}/{}. Loss: {}".format(
-                            batch_index, len(dataloaders[phase]), loss.item()
+                        "batch {}/{}. Eff: {:.2f} Loss: {:.3f}".format(
+                            batch_index,
+                            len(dataloaders[phase]),
+                            process_time / (prepare_time + process_time),
+                            loss.item(),
                         )
                     )
+                if phase == "train":
+                    start_time = time.time()
 
             epoch_loss = running_loss / len(dataloaders[phase].dataset)
-            print("{} loss: {:.5f}".format(phase.capitalize(), epoch_loss))
+            print("{} loss: {:.3f}".format(phase.capitalize(), epoch_loss))
             if phase == "val":
                 print()
 
