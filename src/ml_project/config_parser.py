@@ -130,6 +130,14 @@ def parse_config(args=None):
         "is shuffled randomly when loaded",
     )
     main_parser.add_argument(
+        "--no-bg-generator",
+        action="store_const",
+        const=False,
+        dest="use_bg_generator",
+        default=True,
+        help="Do not use background generator to retrieve data from disk",
+    )
+    main_parser.add_argument(
         "-w",
         "--workers",
         default=4,

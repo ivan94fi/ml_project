@@ -3,6 +3,7 @@
 import time
 
 import torch
+from prefetch_generator import BackgroundGenerator
 
 from ml_project.utils import should_print
 
@@ -41,8 +42,12 @@ def train(dataloaders, network, criterion, optimizer, config):
             running_loss = 0.0
 
             start_time = time.time()
-
-            for batch_index, data in enumerate(dataloaders[phase]):
+            dataloader = (
+                BackgroundGenerator(dataloaders[phase])
+                if config.use_bg_generator
+                else dataloaders[phase]
+            )
+            for batch_index, data in enumerate(dataloader):
                 sample = data.sample.to(config.device)
                 target = data.target.to(config.device)
                 batch_size = sample.shape[0]
