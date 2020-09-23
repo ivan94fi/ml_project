@@ -52,7 +52,7 @@ def train(dataloaders, network, criterion, optimizer, config):
                 target = data.target.to(config.device)
                 batch_size = sample.shape[0]
 
-                prepare_time = start_time - time.time()
+                prepare_time = time.time() - start_time
 
                 optimizer.zero_grad()
 
@@ -66,14 +66,16 @@ def train(dataloaders, network, criterion, optimizer, config):
 
                 running_loss += loss.item() * batch_size
 
-                process_time = start_time - time.time() - prepare_time
+                process_time = time.time() - start_time - prepare_time
 
                 if should_print(phase, batch_index, config):
                     print(
-                        "[{}/{}] Eff: {:.2f} Loss: {:.3f}".format(
+                        "[{}/{}] Eff: {:.2f} ({:.2f}-{:.2f}) Loss: {:.3f}".format(
                             (batch_index * config.batch_size) + batch_size,
                             config.dataset_sizes[phase],
                             process_time / (prepare_time + process_time),
+                            prepare_time,
+                            process_time,
                             loss.item(),
                         )
                     )
