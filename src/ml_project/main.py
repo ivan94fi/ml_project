@@ -31,6 +31,19 @@ print("=" * 60)
 print(tabulate_config(config))
 print("=" * 60)
 
+if not config.no_fixed_seeds:
+    print("Using fixed seeds for RNGs")
+    torch.manual_seed(0)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+    try:
+        import numpy as np
+
+        np.random.seed(0)
+    except ImportError:
+        pass
+
+
 common_transforms = [
     ResizeIfTooSmall(size=config.input_size, stretch=config.stretch),
     RandomCrop(size=config.input_size),

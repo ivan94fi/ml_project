@@ -160,6 +160,12 @@ def parse_config(args=None):
         "the environment variable NOISE2NOISE_DATASET_ROOT can be use to specify "
         "the dataset root. If given, the command line option has precedence.",
     )
+    main_parser.add_argument(
+        "--no-fixed-seeds",
+        action="store_true",
+        default=False,
+        help="Do not use fixed seeds for random number generators.",
+    )
 
     subparsers = main_parser.add_subparsers(
         title="Subcommands for procedures",
