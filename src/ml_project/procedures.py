@@ -4,6 +4,8 @@ import time
 
 import torch
 
+from ml_project.utils import should_print
+
 
 def train(dataloaders, network, criterion, optimizer, config):
     """Execute the trainig procedure with the passed data and configuration.
@@ -61,11 +63,11 @@ def train(dataloaders, network, criterion, optimizer, config):
 
                 process_time = start_time - time.time() - prepare_time
 
-                if phase == "train" and batch_index % 5 == 0:
+                if should_print(phase, batch_index, config):
                     print(
-                        "batch {}/{}. Eff: {:.2f} Loss: {:.3f}".format(
-                            batch_index,
-                            len(dataloaders[phase]),
+                        "[{}/{}] Eff: {:.2f} Loss: {:.3f}".format(
+                            (batch_index * config.batch_size) + batch_size,
+                            config.dataset_sizes[phase],
                             process_time / (prepare_time + process_time),
                             loss.item(),
                         )
@@ -73,7 +75,7 @@ def train(dataloaders, network, criterion, optimizer, config):
                 if phase == "train":
                     start_time = time.time()
 
-            epoch_loss = running_loss / len(dataloaders[phase].dataset)
+            epoch_loss = running_loss / config.dataset_sizes[phase]
             print("{} loss: {:.3f}".format(phase.capitalize(), epoch_loss))
             if phase == "val":
                 print()

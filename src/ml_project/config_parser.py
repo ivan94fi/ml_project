@@ -195,7 +195,6 @@ def parse_config(args=None):
         help="Percentage of the total examples to reserve for the train split. The "
         "rest is reserved for validation. The value must be in (0.0, 1.0] or (0, 100]",
     )
-
     train_parser.add_argument(
         "--train-mode",
         default="n2n",
@@ -203,6 +202,13 @@ def parse_config(args=None):
         type=str,
         help="Train mode: 'n2n' to use corrupted samples and target;"
         "'n2c' to use corrupted samples and clean targets",
+    )
+    train_parser.add_argument(
+        "--print-interval",
+        default=5,
+        type=int,
+        metavar="INT",
+        help="Print metrics during training every INT batches",
     )
 
     noise_group = train_parser.add_argument_group("Noise settings")

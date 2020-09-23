@@ -21,3 +21,13 @@ def prepare_for_imshow(tensor, bias=None):
 
 def uniform(lower, upper):
     return torch.rand(1).item() * (upper - lower) + lower
+
+
+def should_print(phase, batch_index, config):
+    """Print every config.print_interval batches and the last batch"""
+    if phase != "train":
+        return False
+    return (
+        batch_index % config.print_interval == config.print_interval - 1
+        or batch_index == config.batch_numbers["train"] - 1
+    )

@@ -1,4 +1,5 @@
 """Main script of the project; all computations start from here."""
+import math
 import time
 
 import torch
@@ -60,8 +61,14 @@ dataset = full_dataset.get_subset(end=config.num_examples)
 train_dataset, validation_dataset = dataset.split_train_validation(
     train_percentage=config.train_percentage
 )
-print("train dataset size:", len(train_dataset))
-print("validation dataset size:", len(validation_dataset))
+
+config.dataset_sizes = {"train": len(train_dataset), "val": len(validation_dataset)}
+config.batch_numbers = {
+    phase: math.ceil(size / config.batch_size)
+    for phase, size in config.dataset_sizes.items()
+}
+print("train dataset size:", config.dataset_sizes["train"])
+print("validation dataset size:", config.dataset_sizes["val"])
 
 dataloader = DataLoader(
     train_dataset,
