@@ -19,7 +19,7 @@ TODO:
 * test function
 * other noise
 * logging
-* learning rate cli option (annealing?)
+* learning rate (annealing?)
 """
 # =========================================
 
@@ -83,7 +83,7 @@ net = UNet().to(config.device)
 
 criterion = torch.nn.MSELoss()
 
-optimizer = torch.optim.Adam(net.parameters(), lr=0.001)
+optimizer = torch.optim.Adam(net.parameters(), lr=config.learning_rate)
 
 dataloaders = {"train": dataloader, "val": validation_dataloader}
 

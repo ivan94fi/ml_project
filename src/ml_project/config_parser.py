@@ -176,6 +176,13 @@ def parse_config(args=None):
         help="Minibatch size for the training procedure",
     )
     train_parser.add_argument(
+        "-lr",
+        "--learning-rate",
+        default=0.001,
+        type=float,
+        help="Initial learning rate for the optimizer",
+    )
+    train_parser.add_argument(
         "-d",
         "--dry-run",
         action="store_true",
