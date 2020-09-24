@@ -5,10 +5,12 @@ channels:
   - conda-forge
 dependencies:
   - python=3.7
+  - pip
   - pytorch=<PYTORCH_VERSION>         *ERROR* Use make to generate final environment.yml
   - cudatoolkit=<CUDATOOLKIT_VERSION> *ERROR* Use make to generate final environment.yml
   - torchvision
   - mlflow
-  - tensorboardx
   - crc32c
   - psycopg2
+  - pip:
+    - prefetch_generator
