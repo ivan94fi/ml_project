@@ -1,5 +1,6 @@
 # flake8: noqa
 # pylint: skip-file
+import math
 
 import torch
 
@@ -24,13 +25,45 @@ def uniform(lower, upper):
 
 
 def should_print(phase, batch_index, config):
-    """Print every config.print_interval batches and the last batch"""
+    """Print every config.print_interval batches and the last batch."""
     if phase != "train":
         return False
     return (
         batch_index % config.print_interval == config.print_interval - 1
         or batch_index == config.batch_numbers["train"] - 1
     )
+
+
+def calculate_psnr(image, target, data_range=1.0, eps=1e-8):
+    """Compute PSNR between two minibatches of images (image and target).
+
+    The minibatches are expected to have shape (batch_size, channels, width, height).
+
+    Parameters
+    ----------
+    image : torch.Tensor
+        Noisy images batch
+    target : torch.Tensor
+        Clean images batch
+    data_range : int or float
+        The value range of input images (the default is 1.0)
+    eps : float
+        Small constant added to log argument for numerical stability (the
+        default is 1e-8)
+
+    Returns
+    -------
+    float
+        PSNR measure between the input images
+
+    """
+    mse = ((image - target) ** 2).mean().item()
+    return psnr_from_mse(mse, data_range, eps)
+
+
+def psnr_from_mse(mse, data_range=1.0, eps=1e-8):
+    """Compute the PSNR from the given mean square error value."""
+    return 10.0 * math.log10(eps + (data_range ** 2) / mse)
 
 
 class _RepeatSampler:

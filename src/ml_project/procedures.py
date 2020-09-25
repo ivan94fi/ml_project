@@ -6,7 +6,7 @@ import torch
 from prefetch_generator import BackgroundGenerator
 from torch.utils.tensorboard import SummaryWriter
 
-from ml_project.utils import should_print
+from ml_project.utils import psnr_from_mse, should_print
 
 
 def train(dataloaders, network, criterion, optimizer, config):
@@ -45,6 +45,7 @@ def train(dataloaders, network, criterion, optimizer, config):
 
             running_loss = 0.0
             running_efficiency = 0.0
+            running_psnr = 0.0
 
             start_time = time.time()
             epoch_start_time = start_time
@@ -66,6 +67,7 @@ def train(dataloaders, network, criterion, optimizer, config):
                 with torch.set_grad_enabled(phase == "train"):
                     output = network(sample)
                     loss = criterion(output, target)
+                    psnr = psnr_from_mse(loss.item())
 
                     if phase == "train":
                         loss.backward()
@@ -77,16 +79,19 @@ def train(dataloaders, network, criterion, optimizer, config):
 
                 efficiency = process_time / (prepare_time + process_time)
                 running_efficiency += efficiency
+                running_psnr += psnr
 
                 if should_print(phase, batch_index, config):
                     print(
-                        "[{}/{}] Eff: {:.2f} ({:.2f}-{:.2f}) Loss: {:.3f}".format(
+                        "[{}/{}] Eff: {:.2f} ({:.2f}-{:.2f}) Loss: {:.3f}"
+                        " PSNR: {:.3f}".format(
                             (batch_index * config.batch_size) + batch_size,
                             config.dataset_sizes[phase],
                             efficiency,
                             prepare_time,
                             process_time,
                             loss.item(),
+                            psnr,
                         )
                     )
                 start_time = time.time()
@@ -95,6 +100,9 @@ def train(dataloaders, network, criterion, optimizer, config):
             epoch_loss = running_loss / config.dataset_sizes[phase]
             print("{} loss: {:.3f}".format(phase.capitalize(), epoch_loss))
             writer.add_scalar("Loss/" + phase, epoch_loss, epoch)
+            epoch_psnr = running_psnr / config.batch_numbers[phase]
+            print("{} PSNR: {:.3f}".format(phase.capitalize(), epoch_psnr))
+            writer.add_scalar("PSNR/" + phase, epoch_psnr, epoch)
 
             if phase == "train":
                 epoch_time = time.time() - epoch_start_time
