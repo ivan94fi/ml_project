@@ -34,8 +34,8 @@ def train(dataloaders, network, criterion, optimizer, config):
     # TODO: pass writer as parameter?
     writer = SummaryWriter()  # TODO: use a tmp dir?
 
-    for epoch in range(config.epochs):
-        print("epoch: {}/{}".format(epoch + 1, config.epochs))
+    for epoch in range(1, config.epochs + 1):
+        print("epoch: {}/{}".format(epoch, config.epochs))
 
         for phase in ["train", "val"]:
             if phase == "train":
