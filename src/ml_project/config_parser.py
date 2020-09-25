@@ -219,7 +219,7 @@ def parse_config(args=None):
     )
     train_parser.add_argument(
         "--print-interval",
-        default=5,
+        default=20,
         type=int,
         metavar="INT",
         help="Print metrics during training every INT batches",
