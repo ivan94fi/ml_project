@@ -110,6 +110,7 @@ dataloaders = {"train": dataloader, "val": validation_dataloader}
 if config.command == "train":
     print()
     print("Starting train loop")
+    print()
     train_loop_start = time.time()
     train(dataloaders, net, criterion, optimizer, config)
     train_loop_end = time.time()

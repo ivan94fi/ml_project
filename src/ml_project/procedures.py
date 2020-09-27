@@ -5,8 +5,9 @@ import time
 import torch
 from prefetch_generator import BackgroundGenerator
 from torch.utils.tensorboard import SummaryWriter
+from tqdm import tqdm
 
-from ml_project.utils import psnr_from_mse, should_print
+from ml_project.utils import print_metrics, psnr_from_mse, should_print
 
 
 def train(dataloaders, network, criterion, optimizer, config):
@@ -55,6 +56,14 @@ def train(dataloaders, network, criterion, optimizer, config):
                 if config.use_bg_generator
                 else dataloaders[phase]
             )
+
+            progress_bar = tqdm(
+                total=config.dataset_sizes[phase],
+                dynamic_ncols=True,
+                disable=config.no_progress_bar or phase == "val",
+                desc=phase,
+            )
+
             for batch_index, data in enumerate(dataloader):
                 sample = data.sample.to(config.device)
                 target = data.target.to(config.device)
@@ -82,19 +91,24 @@ def train(dataloaders, network, criterion, optimizer, config):
                 running_psnr += psnr
 
                 if should_print(phase, batch_index, config):
-                    print(
-                        "[{}/{}] Eff: {:.2f} ({:.2f}-{:.2f}) Loss: {:.3f}"
-                        " PSNR: {:.3f}".format(
-                            (batch_index * config.batch_size) + batch_size,
-                            config.dataset_sizes[phase],
-                            efficiency,
-                            prepare_time,
-                            process_time,
-                            loss.item(),
-                            psnr,
-                        )
+                    args = [
+                        (batch_index * config.batch_size) + batch_size,
+                        config.dataset_sizes[phase],
+                        efficiency,
+                        prepare_time,
+                        process_time,
+                        loss.item(),
+                        psnr,
+                    ]
+                    format_str = (
+                        "[{}/{}] Eff: {:.2f} ({:.2f}-{:.2f}) Loss: {:.3f} PSNR: {:.3f}"
                     )
+                    print_metrics(progress_bar, format_str, args)
+
+                progress_bar.update(batch_size)
                 start_time = time.time()
+
+            progress_bar.close()
 
             # Logging
             epoch_loss = running_loss / config.dataset_sizes[phase]

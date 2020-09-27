@@ -166,6 +166,11 @@ def parse_config(args=None):
         default=False,
         help="Do not use fixed seeds for random number generators.",
     )
+    main_parser.add_argument(
+        "--no-progress-bar",
+        action="store_true",
+        help="Do not print a progress bar during training.",
+    )
 
     subparsers = main_parser.add_subparsers(
         title="Subcommands for procedures",

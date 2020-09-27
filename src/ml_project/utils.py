@@ -34,6 +34,15 @@ def should_print(phase, batch_index, config):
     )
 
 
+def print_metrics(progress_bar, format_str, args):
+    if progress_bar.disable:
+        print(format_str.format(*args))
+    else:
+        progress_bar.set_postfix_str(
+            format_str[format_str.find("Eff") :].format(*args[2:])
+        )
+
+
 def calculate_psnr(image, target, data_range=1.0, eps=1e-8):
     """Compute PSNR between two minibatches of images (image and target).
 
