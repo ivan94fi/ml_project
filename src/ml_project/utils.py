@@ -3,6 +3,7 @@
 import math
 
 import torch
+from tqdm import tqdm
 
 
 def to_channel_last(tensor):
@@ -24,23 +25,63 @@ def uniform(lower, upper):
     return torch.rand(1).item() * (upper - lower) + lower
 
 
-def should_print(phase, batch_index, config):
-    """Print every config.print_interval batches and the last batch."""
-    if phase != "train":
-        return False
-    return (
-        batch_index % config.print_interval == config.print_interval - 1
-        or batch_index == config.batch_numbers["train"] - 1
-    )
+class ProgressPrinter:
+    """Utility class to handle a tqdm progress bar."""
 
+    def __init__(self, config, phase):
+        super().__init__()
+        self.config = config
+        self.phase = phase
 
-def print_metrics(progress_bar, format_str, args):
-    if progress_bar.disable:
-        print(format_str.format(*args))
-    else:
-        progress_bar.set_postfix_str(
-            format_str[format_str.find("Eff") :].format(*args[2:])
+        self.batch_size = None
+        self.batch_index = None
+
+        self.progress_bar = tqdm(
+            total=config.dataset_sizes[phase],
+            dynamic_ncols=True,
+            disable=config.no_progress_bar or phase == "val",
         )
+
+    def _should_print(self):
+        """
+        Check if the progress should be printed.
+
+        Return True if the following conditions are met:
+        - the phase is train
+        - batch index is a multiple of print interval or we are on the last batch
+        """
+        if self.phase != "train":
+            return False
+        return (
+            self.batch_index % self.config.print_interval
+            == self.config.print_interval - 1
+            or self.batch_index == self.config.batch_numbers["train"] - 1
+        )
+
+    def show_epoch_progress(self, metrics_template_str, *metrics):
+        """Print info on metrics. If self.progress_bar is disabled, use a simple print to stdout."""
+        if self._should_print():
+            metrics_str = metrics_template_str.format(*metrics)
+            if self.progress_bar.disable:
+                print(
+                    "[{}/{}] ".format(
+                        self.batch_index * self.config.batch_size + self.batch_size,
+                        self.config.dataset_sizes[self.phase],
+                    )
+                    + metrics_str
+                )
+            else:
+                self.progress_bar.set_postfix_str(metrics_str)
+
+    def update_bar(self, n):
+        self.progress_bar.update(n)
+
+    def close_bar(self):
+        self.progress_bar.close()
+
+    def update_batch_info(self, batch_size, batch_index):
+        self.batch_size = batch_size
+        self.batch_index = batch_index
 
 
 def calculate_psnr(image, target, data_range=1.0, eps=1e-8):
