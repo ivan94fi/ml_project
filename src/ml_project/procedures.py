@@ -33,6 +33,10 @@ def train(dataloaders, network, criterion, optimizer, config):
 
     # TODO: pass writer as parameter?
     writer = SummaryWriter()  # TODO: use a tmp dir?
+    progress_printer = ProgressPrinter(
+        config,
+        progress_template="Eff: {:.2f} ({:.2f}-{:.2f}) Loss: {:.3f} PSNR: {:.3f}",
+    )
 
     for epoch in range(1, config.epochs + 1):
         print("Epoch: {}/{}".format(epoch, config.epochs))
@@ -58,7 +62,7 @@ def train(dataloaders, network, criterion, optimizer, config):
                 else dataloaders[phase]
             )
 
-            progress_printer = ProgressPrinter(config, phase)
+            progress_printer.reset(phase)
 
             for batch_index, data in enumerate(dataloader):
                 sample = data.sample.to(config.device)
@@ -88,12 +92,7 @@ def train(dataloaders, network, criterion, optimizer, config):
                 running_psnr += psnr
 
                 progress_printer.show_epoch_progress(
-                    "Eff: {:.2f} ({:.2f}-{:.2f}) Loss: {:.3f} PSNR: {:.3f}",
-                    efficiency,
-                    prepare_time,
-                    process_time,
-                    loss.item(),
-                    psnr,
+                    efficiency, prepare_time, process_time, loss.item(), psnr
                 )
 
                 progress_printer.update_bar(batch_size)

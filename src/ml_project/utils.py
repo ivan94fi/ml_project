@@ -28,18 +28,20 @@ def uniform(lower, upper):
 class ProgressPrinter:
     """Utility class to handle a tqdm progress bar."""
 
-    def __init__(self, config, phase):
+    def __init__(self, config, progress_template):
         super().__init__()
         self.config = config
-        self.phase = phase
+        self.progress_template = progress_template
 
-        self.batch_size = None
+    def reset(self, phase):
+        self.phase = phase
         self.batch_index = None
+        self.batch_size = None
 
         self.progress_bar = tqdm(
-            total=config.dataset_sizes[phase],
+            total=self.config.dataset_sizes[phase],
             dynamic_ncols=True,
-            disable=config.no_progress_bar or phase == "val",
+            disable=self.config.no_progress_bar or phase == "val",
         )
 
     def _should_print(self):
@@ -58,10 +60,10 @@ class ProgressPrinter:
             or self.batch_index == self.config.batch_numbers["train"] - 1
         )
 
-    def show_epoch_progress(self, metrics_template_str, *metrics):
+    def show_epoch_progress(self, *metrics):
         """Print info on metrics. If self.progress_bar is disabled, use a simple print to stdout."""
         if self._should_print():
-            metrics_str = metrics_template_str.format(*metrics)
+            metrics_str = self.progress_template.format(*metrics)
             if self.progress_bar.disable:
                 print(
                     "[{}/{}] ".format(
