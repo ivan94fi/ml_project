@@ -12,5 +12,6 @@ dependencies:
   - mlflow
   - crc32c
   - psycopg2
+  - tqdm
   - pip:
     - prefetch_generator
