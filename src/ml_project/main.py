@@ -1,7 +1,10 @@
 """Main script of the project; all computations start from here."""
 import math
+import os
+import random
 import time
 
+import numpy as np
 import torch
 from torch.utils.data import DataLoader
 from torchvision.transforms import Lambda, RandomCrop, ToTensor
@@ -31,17 +34,20 @@ print("=" * 60)
 print(tabulate_config(config))
 print("=" * 60)
 
+
+# pylint: disable=unused-argument
+def _set_external_seeds(worker_id=None):
+    random.seed(config.seed)
+    np.random.seed(config.seed)
+    os.environ["PYTHONHASHSEED"] = str(config.seed)
+
+
 if not config.no_fixed_seeds:
     print("Using fixed seeds for RNGs")
-    torch.manual_seed(0)
+    torch.manual_seed(config.seed)
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
-    try:
-        import numpy as np
-
-        np.random.seed(0)
-    except ImportError:
-        pass
+    _set_external_seeds()
 
 
 common_transforms = [
@@ -91,6 +97,7 @@ dataloader = DataLoader(
     shuffle=config.shuffle,
     num_workers=config.workers,
     pin_memory=config.pin_memory,
+    worker_init_fn=_set_external_seeds,
 )
 
 validation_dataloader = DataLoader(
@@ -99,6 +106,7 @@ validation_dataloader = DataLoader(
     shuffle=config.shuffle,
     num_workers=config.workers,
     pin_memory=config.pin_memory,
+    worker_init_fn=_set_external_seeds,
 )
 
 net = UNet().to(config.device)

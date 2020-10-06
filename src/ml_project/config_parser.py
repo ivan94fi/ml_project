@@ -165,6 +165,9 @@ def parse_config(args=None):
         help="Do not use fixed seeds for random number generators.",
     )
     main_parser.add_argument(
+        "--seed", default=42, type=int, help="The seed for all RNGs in the program."
+    )
+    main_parser.add_argument(
         "--no-progress-bar",
         action="store_true",
         help="Do not print a progress bar during training.",
