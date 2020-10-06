@@ -66,8 +66,6 @@ class ParseStdRange(argparse.Action):
         """Perfrom the check."""
         if values[0] > values[1]:
             parser.error("lower bound should be lesser than or equal to upper bound")
-        if values[0] > 100 or values[1] > 100:
-            parser.error("std values should be in [0,100]")
         namespace.std_range = tuple(values)
 
 
@@ -246,7 +244,9 @@ def parse_config(args=None):
         type=float,
         metavar=("LOWER", "UPPER"),
         action=ParseStdRange,
-        help="The standard deviation range of noise to be added",
+        help="The standard deviation range of noise to be added. This value must be "
+        "specified as if it was applied to integer pixel values in [0, 255]. It is "
+        "internally converted to be applied on floating point pixel values in [0, 1].",
     )
 
     test_parser = subparsers.add_parser(

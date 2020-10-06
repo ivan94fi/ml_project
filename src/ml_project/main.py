@@ -57,6 +57,8 @@ else:
     # TODO: add other types of noise
     raise NotImplementedError
 
+config.std_range = tuple(val / 255.0 for val in config.std_range)
+
 sample_transforms = ComposeCopies(
     [*common_transforms, NoiseTransform(std=config.std_range)]
 )
