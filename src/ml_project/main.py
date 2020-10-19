@@ -42,7 +42,7 @@ def _set_external_seeds(worker_id=None):
     os.environ["PYTHONHASHSEED"] = str(config.seed)
 
 
-if not config.no_fixed_seeds:
+if config.fixed_seeds:
     print("Using fixed seeds for RNGs")
     torch.manual_seed(config.seed)
     torch.backends.cudnn.deterministic = True

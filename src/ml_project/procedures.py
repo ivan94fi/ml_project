@@ -58,7 +58,7 @@ def train(dataloaders, network, criterion, optimizer, config):
 
             dataloader = (
                 BackgroundGenerator(dataloaders[phase])
-                if config.use_bg_generator
+                if config.bg_generator
                 else dataloaders[phase]
             )
 

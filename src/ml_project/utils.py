@@ -41,7 +41,7 @@ class ProgressPrinter:
         self.progress_bar = tqdm(
             total=self.config.dataset_sizes[phase],
             dynamic_ncols=True,
-            disable=self.config.no_progress_bar or phase == "val",
+            disable=not self.config.progress_bar or phase == "val",
         )
 
     def _should_print(self):

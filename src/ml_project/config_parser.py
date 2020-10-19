@@ -110,30 +110,25 @@ def parse_config(args=None):
         help="Dimensions of the input layer of the network",
     )
     main_parser.add_argument(
-        "--dont-stretch",
-        action="store_const",
-        const=False,
-        dest="stretch",
+        "--stretch",
         default=True,
-        help="Retain the aspect ratio of small images when resized. If not given, "
-        "small images will be stretched to match (input_size, input_size)",
+        type=strtobool,
+        help="Whether to retain the aspect ratio of small images when resized. If "
+        "True small images will be stretched to match (input_size, input_size); if "
+        "False, small images will be upscaled uniformly in both directions until the "
+        "smaller side matches input_size, then cropped to (input_size, input,size)",
     )
     main_parser.add_argument(
-        "--dont-shuffle",
-        action="store_const",
-        const=False,
-        dest="shuffle",
+        "--shuffle",
         default=True,
-        help="Do not shuffle the dataset on loading. If not given, the dataset "
-        "is shuffled randomly when loaded",
+        type=strtobool,
+        help="Whether to randomly shuffle the dataset upon loading",
     )
     main_parser.add_argument(
-        "--no-bg-generator",
-        action="store_const",
-        const=False,
-        dest="use_bg_generator",
+        "--bg-generator",
         default=True,
-        help="Do not use background generator to retrieve data from disk",
+        type=strtobool,
+        help="Whether to use a background generator to retrieve data from disk",
     )
     main_parser.add_argument(
         "-w",
@@ -159,18 +154,19 @@ def parse_config(args=None):
         "the dataset root. If given, the command line option has precedence.",
     )
     main_parser.add_argument(
-        "--no-fixed-seeds",
-        action="store_true",
-        default=False,
-        help="Do not use fixed seeds for random number generators.",
+        "--fixed-seeds",
+        default=True,
+        type=strtobool,
+        help="Whether to use fixed seeds for random number generators in the script",
     )
     main_parser.add_argument(
         "--seed", default=42, type=int, help="The seed for all RNGs in the program."
     )
     main_parser.add_argument(
-        "--no-progress-bar",
-        action="store_true",
-        help="Do not print a progress bar during training.",
+        "--progress-bar",
+        default=True,
+        type=strtobool,
+        help="Print a progress bar during training.",
     )
 
     subparsers = main_parser.add_subparsers(
