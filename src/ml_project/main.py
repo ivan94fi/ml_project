@@ -50,12 +50,14 @@ if config.fixed_seeds:
     _set_external_seeds()
 
 
-common_transforms = [
-    ResizeIfTooSmall(size=config.input_size, stretch=config.stretch),
-    RandomCrop(size=config.input_size),
-    ToTensor(),
-    Lambda(lambda sample: sample - 0.5),  # move the tensors in [-0.5, 0.5]
-]
+common_transforms = ComposeCopies(
+    [
+        ResizeIfTooSmall(size=config.input_size, stretch=config.stretch),
+        RandomCrop(size=config.input_size),
+        ToTensor(),
+        Lambda(lambda sample: sample - 0.5),  # move the tensors in [-0.5, 0.5]
+    ]
+)
 
 if config.noise_type == "gaussian":
     NoiseTransform = GaussianNoise
@@ -65,18 +67,18 @@ else:
 
 config.std_range = tuple(val / 255.0 for val in config.std_range)
 
-sample_transforms = ComposeCopies(
-    [*common_transforms, NoiseTransform(std=config.std_range)]
-)
+sample_transforms = ComposeCopies([NoiseTransform(std=config.std_range)])
 target_transforms = ComposeCopies(
-    sample_transforms if config.train_mode == "n2n" else common_transforms
+    sample_transforms if config.train_mode == "n2n" else []
 )
 
-full_dataset = ImageFolderDataset(
-    config.dataset_root,
-    transforms=sample_transforms,
-    target_transforms=target_transforms,
-)
+transforms = {
+    "common": common_transforms,
+    "sample": sample_transforms,
+    "target": target_transforms,
+}
+
+full_dataset = ImageFolderDataset(config.dataset_root, transforms=transforms)
 dataset = full_dataset.get_subset(end=config.num_examples)
 
 train_dataset, validation_dataset = dataset.split_train_validation(

@@ -4,6 +4,7 @@ import os
 import warnings
 from collections import namedtuple
 
+import torch
 from torch.utils.data import Dataset, random_split
 
 from ml_project.image_loaders import PillowLoader
@@ -43,24 +44,18 @@ class ImageFolderDataset(Dataset):
     image_paths : list of str, optional
         If passed, use these filenames to contruct the dataset,
         do not parse the root directory (the default is None).
-    transforms : callable, optional
-        Functions or transforms to apply to data (the default is None).
-    target_transforms : callable, optional
-        Functions or transforms to apply to targets (the default is None).
+    transforms : dict of callables, optional
+        Functions or transforms to apply to data; three keys are expected:
+        "common", "sample", "target". The transforms are applied only to the
+        element specified by their key and common transforms are applied first
+        (the default is None).
     loader : AbstractImageLoader implementation, optional
         The image loader to use: defaults to PillowLoader
 
     """
 
     # pylint: disable=too-many-arguments
-    def __init__(
-        self,
-        root_dir,
-        image_paths=None,
-        transforms=None,
-        target_transforms=None,
-        loader=None,
-    ):
+    def __init__(self, root_dir, image_paths=None, transforms=None, loader=None):
         self.root_dir = _read_directory_from_env() if root_dir is None else root_dir
         if not os.path.isdir(self.root_dir):
             raise ValueError("dataset directory does not point to a valid directory")
@@ -71,7 +66,10 @@ class ImageFolderDataset(Dataset):
             self.image_paths = image_paths
 
         self.transforms = transforms
-        self.target_transforms = target_transforms
+        if self.transforms is not None:
+            self.common_transforms = transforms.get("common")
+            self.sample_transforms = transforms.get("sample")
+            self.target_transforms = transforms.get("target")
 
         if loader is None:
             self.loader = PillowLoader()
@@ -100,11 +98,18 @@ class ImageFolderDataset(Dataset):
         """
         path = os.path.join(self.root_dir, self.image_paths[idx])
         sample = self.loader.load(path)
-        target = sample.copy()
 
-        if self.transforms:
-            sample = self.transforms(sample)
-        if self.target_transforms:
+        if self.common_transforms is not None:
+            sample = self.common_transforms(sample)
+
+        if isinstance(sample, torch.Tensor):
+            target = sample.clone().detach()
+        else:
+            target = sample.copy()
+
+        if self.sample_transforms is not None:
+            sample = self.sample_transforms(sample)
+        if self.target_transforms is not None:
             target = self.target_transforms(target)
 
         return TrainingPair(sample=sample, target=target)
@@ -136,7 +141,6 @@ class ImageFolderDataset(Dataset):
             self.root_dir,
             image_paths=subset_image_paths,
             transforms=self.transforms,
-            target_transforms=self.target_transforms,
             loader=self.loader,
         )
 
