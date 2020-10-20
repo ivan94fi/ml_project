@@ -103,7 +103,7 @@ class ImageFolderDataset(Dataset):
             sample = self.common_transforms(sample)
 
         if isinstance(sample, torch.Tensor):
-            target = sample.clone().detach()
+            target = sample.detach().clone()
         else:
             target = sample.copy()
 
