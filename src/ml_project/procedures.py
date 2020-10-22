@@ -73,9 +73,8 @@ def train(dataloaders, network, criterion, optimizer, config):
 
                 prepare_time = time.time() - start_time
 
-                optimizer.zero_grad()
-
                 with torch.set_grad_enabled(phase == "train"):
+                    optimizer.zero_grad()
                     output = network(sample)
                     loss = criterion(output, target)
                     psnr = psnr_from_mse(loss.item())
