@@ -6,7 +6,14 @@ import torch
 from prefetch_generator import BackgroundGenerator
 from torch.utils.tensorboard import SummaryWriter
 
-from ml_project.utils import ProgressPrinter, psnr_from_mse
+from ml_project.utils import (
+    ProgressPrinter,
+    create_figure,
+    get_gpu_stats,
+    get_nvml_handle,
+    nvml_shutdown,
+    psnr_from_mse,
+)
 
 
 def train(dataloaders, network, criterion, optimizer, config):
@@ -31,12 +38,12 @@ def train(dataloaders, network, criterion, optimizer, config):
         print("Dry run. Not executing training")
         return
 
-    # TODO: pass writer as parameter?
     writer = SummaryWriter()  # TODO: use a tmp dir?
     progress_printer = ProgressPrinter(
         config,
         progress_template="Eff: {:.2f} ({:.2f}-{:.2f}) Loss: {:.3f} PSNR: {:.3f}",
     )
+    handle = get_nvml_handle()
 
     for epoch in range(1, config.epochs + 1):
         print("Epoch: {}/{}".format(epoch, config.epochs))
@@ -85,21 +92,46 @@ def train(dataloaders, network, criterion, optimizer, config):
 
                 process_time = time.time() - start_time - prepare_time
 
-                running_loss += loss.item() * batch_size
+                current_loss = loss.item() * batch_size
+                running_loss += current_loss
                 efficiency = process_time / (prepare_time + process_time)
                 running_efficiency += efficiency
                 running_psnr += psnr
 
                 progress_printer.show_epoch_progress(
-                    efficiency, prepare_time, process_time, loss.item(), psnr
+                    efficiency, prepare_time, process_time, current_loss, psnr
                 )
+
+                # Iteration logging
+                if phase == "train":
+                    if (
+                        config.log_images is not None
+                        and batch_index % config.log_images == 0
+                    ):
+                        with torch.set_grad_enabled(False):
+                            fig = create_figure([data.sample, data.target, output])
+                        writer.add_figure(
+                            "input-target-output/epoch:" + str(epoch),
+                            fig,
+                            global_step=batch_index,
+                        )
+                    if (
+                        config.log_other_metrics is not None
+                        and batch_index % config.log_other_metrics == 0
+                    ):
+                        used_mem, rate, temp = get_gpu_stats(handle)
+                        writer.add_scalar(
+                            "GPU/mem used", used_mem, global_step=batch_index
+                        )
+                        writer.add_scalar("GPU/util", rate, global_step=batch_index)
+                        writer.add_scalar("GPU/temp", temp, global_step=batch_index)
 
                 progress_printer.update_bar(batch_size)
                 start_time = time.time()
 
             progress_printer.close_bar()
 
-            # Logging
+            # Epoch logging
             epoch_loss = running_loss / config.dataset_sizes[phase]
             epoch_psnr = running_psnr / config.batch_numbers[phase]
             print(
@@ -120,6 +152,7 @@ def train(dataloaders, network, criterion, optimizer, config):
                 print()
 
     writer.close()
+    nvml_shutdown()
 
 
 def test(configuration):

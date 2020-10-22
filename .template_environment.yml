@@ -13,5 +13,7 @@ dependencies:
   - crc32c
   - psycopg2
   - tqdm
+  - matplotlib
+  - py3nvml
   - pip:
     - prefetch_generator

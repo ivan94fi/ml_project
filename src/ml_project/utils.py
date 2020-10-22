@@ -1,8 +1,20 @@
 # flake8: noqa
 # pylint: skip-file
 import math
+import os
 
+import matplotlib.pyplot as plt
 import torch
+from py3nvml.py3nvml import (
+    NVML_TEMPERATURE_GPU,
+    nvmlDeviceGetHandleByIndex,
+    nvmlDeviceGetMemoryInfo,
+    nvmlDeviceGetTemperature,
+    nvmlDeviceGetUtilizationRates,
+    nvmlInit,
+    nvmlShutdown,
+)
+from torchvision.utils import make_grid
 from tqdm import tqdm
 
 
@@ -23,6 +35,58 @@ def prepare_for_imshow(tensor, bias=None):
 
 def uniform(lower, upper):
     return torch.rand(1).item() * (upper - lower) + lower
+
+
+def get_nvml_handle(index=None):
+    """Return an handle to the current gpu to query some stats."""
+    if index is None:
+        index = torch.cuda.current_device()
+        visible_devices = os.environ.get("CUDA_VISIBLE_DEVICES")
+        if visible_devices is not None:
+            visible_devices = [int(d) for d in visible_devices.split(",")]
+            # The following line assumes devices ids are specified in order and
+            # without gaps in CUDA_VISIBLE_DEVICES definition
+            index += max(visible_devices)
+
+    nvmlInit()
+    return nvmlDeviceGetHandleByIndex(index)
+
+
+def get_gpu_stats(handle):
+    """
+    Return some statistics for the gpu associated with handle.
+
+    The statistics returned are:
+    - used memory in MB
+    - gpu utilization percentage
+    - temperature in Celsius degrees
+    """
+    mem = nvmlDeviceGetMemoryInfo(handle)
+    rates = nvmlDeviceGetUtilizationRates(handle)
+    temp = nvmlDeviceGetTemperature(handle, NVML_TEMPERATURE_GPU)
+    return (mem.used / 1024 / 1024, rates.gpu, temp)
+
+
+def nvml_shutdown():
+    """Free resources occupied by nvml."""
+    nvmlShutdown()
+
+
+def create_figure(images):
+    """
+    Create a matplotlib figure with the passed batches of tensor images.
+
+    The input tensors are copied, each batch is flattened, then the images
+    obtained are plotted in column in a matplotlib figure.
+    """
+    fig, axes = plt.subplots(len(images), 1)
+    for ax, image in zip(axes, images):
+        image = prepare_for_imshow(make_grid(image.detach().clone().cpu()), 0.5)
+        ax.imshow(image)
+        ax.get_xaxis().set_visible(False)
+        ax.get_yaxis().set_visible(False)
+    fig.tight_layout(pad=0, w_pad=0, h_pad=0)
+    return fig
 
 
 class ProgressPrinter:

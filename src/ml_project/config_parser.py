@@ -226,6 +226,23 @@ def parse_config(args=None):
         metavar="INT",
         help="Print metrics during training every INT batches",
     )
+    train_parser.add_argument(
+        "--log-images",
+        default=None,
+        type=lambda v: int(v) if v else None,
+        metavar="INT",
+        help="If supplied, log the current sample, target and output images to "
+        "tensorboard every INT batches during training. Pass an empty string "
+        "(--log-images='') to disable",
+    )
+    train_parser.add_argument(
+        "--log-other-metrics",
+        default=300,
+        type=lambda v: int(v) if v else None,
+        metavar="INT",
+        help="Log additionary metrics to tensorboard every INT batches during "
+        "training. Pass an empty string (--log-other-metrics='') to disable",
+    )
 
     noise_group = train_parser.add_argument_group("Noise settings")
     noise_group.add_argument(
