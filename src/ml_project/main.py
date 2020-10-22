@@ -115,7 +115,9 @@ net = UNet().to(config.device)
 
 criterion = torch.nn.MSELoss()
 
-optimizer = torch.optim.Adam(net.parameters(), lr=config.learning_rate)
+optimizer = torch.optim.Adam(
+    net.parameters(), lr=config.learning_rate, betas=(0.9, 0.99)
+)
 
 dataloaders = {"train": dataloader, "val": validation_dataloader}
 
