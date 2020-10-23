@@ -84,7 +84,6 @@ def train(dataloaders, network, criterion, optimizer, config):
                     optimizer.zero_grad()
                     output = network(sample)
                     loss = criterion(output, target)
-                    psnr = psnr_from_mse(loss.item())
 
                     if phase == "train":
                         loss.backward()
@@ -92,11 +91,12 @@ def train(dataloaders, network, criterion, optimizer, config):
 
                 process_time = time.time() - start_time - prepare_time
 
-                current_loss = loss.item() * batch_size
-                running_loss += current_loss
+                current_loss = loss.item()
+                running_loss += current_loss * batch_size
                 efficiency = process_time / (prepare_time + process_time)
                 running_efficiency += efficiency
-                running_psnr += psnr
+                psnr = psnr_from_mse(current_loss)
+                running_psnr += psnr * batch_size
 
                 progress_printer.show_epoch_progress(
                     efficiency, prepare_time, process_time, current_loss, psnr
@@ -133,7 +133,7 @@ def train(dataloaders, network, criterion, optimizer, config):
 
             # Epoch logging
             epoch_loss = running_loss / config.dataset_sizes[phase]
-            epoch_psnr = running_psnr / config.batch_numbers[phase]
+            epoch_psnr = running_psnr / config.dataset_sizes[phase]
             print(
                 "{} concluded. Loss: {:.3f} PSNR: {:.3f}".format(
                     phase.capitalize(), epoch_loss, epoch_psnr
