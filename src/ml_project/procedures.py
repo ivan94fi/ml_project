@@ -40,8 +40,7 @@ def train(dataloaders, network, criterion, optimizer, config):
 
     writer = SummaryWriter()  # TODO: use a tmp dir?
     progress_printer = ProgressPrinter(
-        config,
-        progress_template="Eff: {:.2f} ({:.2f}-{:.2f}) Loss: {:.3f} PSNR: {:.3f}",
+        config, progress_template="Loss: {:.3f} - PSNR: {:.3f}"
     )
     handle = get_nvml_handle()
 
@@ -98,9 +97,7 @@ def train(dataloaders, network, criterion, optimizer, config):
                 psnr = psnr_from_mse(current_loss)
                 running_psnr += psnr * batch_size
 
-                progress_printer.show_epoch_progress(
-                    efficiency, prepare_time, process_time, current_loss, psnr
-                )
+                progress_printer.show_epoch_progress(current_loss, psnr)
 
                 # Iteration logging
                 if phase == "train":
@@ -119,12 +116,17 @@ def train(dataloaders, network, criterion, optimizer, config):
                         config.log_other_metrics is not None
                         and batch_index % config.log_other_metrics == 0
                     ):
+                        step = epoch * config.batch_numbers["train"] + batch_index
                         used_mem, rate, temp = get_gpu_stats(handle)
-                        writer.add_scalar(
-                            "GPU/mem used", used_mem, global_step=batch_index
-                        )
-                        writer.add_scalar("GPU/util", rate, global_step=batch_index)
-                        writer.add_scalar("GPU/temp", temp, global_step=batch_index)
+                        additional_metrics = {
+                            "Utils/efficiency": efficiency,
+                            "Utils/iter_time": prepare_time + process_time,
+                            "Utils/GPU/mem_used": used_mem,
+                            "Utils/GPU/util": rate,
+                            "Utils/GPU/temp": temp,
+                        }
+                        for tag, value in additional_metrics.items():
+                            writer.add_scalar(tag, value, global_step=step)
 
                 progress_printer.update_bar(batch_size)
                 start_time = time.time()
@@ -139,14 +141,8 @@ def train(dataloaders, network, criterion, optimizer, config):
                     phase.capitalize(), epoch_loss, epoch_psnr
                 )
             )
-            writer.add_scalar("Loss/" + phase, epoch_loss, epoch)
-            writer.add_scalar("PSNR/" + phase, epoch_psnr, epoch)
-
-            if phase == "train":
-                epoch_time = time.time() - epoch_start_time
-                epoch_efficiency = running_efficiency / config.batch_numbers["train"]
-                writer.add_scalar("Time", epoch_time, epoch)
-                writer.add_scalar("Efficiency", epoch_efficiency, epoch)
+            writer.add_scalar("Metrics/Loss/" + phase, epoch_loss, epoch)
+            writer.add_scalar("Metrics/PSNR/" + phase, epoch_psnr, epoch)
 
             if phase == "val":
                 print()
