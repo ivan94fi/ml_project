@@ -143,6 +143,7 @@ class ProgressPrinter:
         self.progress_bar.update(n)
 
     def close_bar(self):
+        self.progress_bar.set_postfix_str("")
         self.progress_bar.close()
 
     def update_batch_info(self, batch_size, batch_index):
