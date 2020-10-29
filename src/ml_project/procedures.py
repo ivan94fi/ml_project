@@ -144,6 +144,9 @@ def train(dataloaders, network, criterion, optimizer, config):
             )
             writer.add_scalar("Metrics/Loss/" + phase, epoch_loss, epoch)
             writer.add_scalar("Metrics/PSNR/" + phase, epoch_psnr, epoch)
+            if phase == "train":
+                epoch_time = int(start_time - epoch_start_time)
+                writer.add_scalar("Utils/epoch_time", epoch_time, epoch)
 
             if phase == "val":
                 print()
