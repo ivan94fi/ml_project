@@ -107,19 +107,31 @@ class ComposeCopies(Compose):
 
     def __init__(self, transforms):
         super().__init__(None)
-        self.transforms = copy.deepcopy(transforms)
+
+        try:
+            iter(transforms)
+        except TypeError:
+            raise ValueError("transforms parameter should be iterable") from None
+
+        self.transforms = [
+            copy.deepcopy(t) for t in _flatten_composed_transforms(transforms)
+        ]
 
     def __getitem__(self, index):
-        """Return a copy of the `index`-th transform."""
-        return copy.deepcopy(self.transforms[index])
+        """Return the `index`-th transform."""
+        return self.transforms[index]
 
     def __len__(self):
         """Return the number of transforms embedded in this composition."""
         return len(self.transforms)
 
-    def __repr__(self):
-        """Print an adequate representation of the class."""
-        format_string = super().__repr__()
-        return format_string.replace(
-            super().__class__.__name__, self.__class__.__name__, 1
-        )
+
+def _flatten_composed_transforms(transforms):
+    """Convert nested ComposeCopies objects to a single list of transforms."""
+    flattened = []
+    for transform in transforms:
+        if isinstance(transform, ComposeCopies):
+            flattened.extend(_flatten_composed_transforms(transform))
+        else:
+            flattened.append(transform)
+    return flattened
