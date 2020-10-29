@@ -112,7 +112,7 @@ dataloader = DataLoader(
 validation_dataloader = DataLoader(
     validation_dataset,
     batch_size=config.batch_size,
-    shuffle=config.shuffle,
+    shuffle=False,
     num_workers=config.workers,
     pin_memory=config.pin_memory,
     worker_init_fn=_set_external_seeds,
