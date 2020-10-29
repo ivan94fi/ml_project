@@ -72,7 +72,7 @@ def nvml_shutdown():
     nvmlShutdown()
 
 
-def create_figure(images):
+def create_figure(images, title=None):
     """
     Create a matplotlib figure with the passed batches of tensor images.
 
@@ -86,6 +86,12 @@ def create_figure(images):
         ax.get_xaxis().set_visible(False)
         ax.get_yaxis().set_visible(False)
     fig.tight_layout(pad=0, w_pad=0, h_pad=0)
+    fig.suptitle(
+        title,
+        fontsize=15,
+        fontweight="bold",
+        bbox={"facecolor": "white", "alpha": 0.5, "pad": 5},
+    )
     return fig
 
 

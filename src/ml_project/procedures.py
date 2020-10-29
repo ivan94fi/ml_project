@@ -100,23 +100,24 @@ def train(dataloaders, network, criterion, optimizer, config):
                 progress_printer.show_epoch_progress(current_loss, psnr)
 
                 # Iteration logging
-                if phase == "train":
-                    if (
-                        config.log_images is not None
-                        and batch_index % config.log_images == 0
-                    ):
-                        with torch.set_grad_enabled(False):
-                            fig = create_figure([data.sample, data.target, output])
-                        writer.add_figure(
-                            "input-target-output/epoch:" + str(epoch),
-                            fig,
-                            global_step=batch_index,
+                step = epoch * config.batch_numbers[phase] + batch_index
+                if (
+                    config.log_images is not None
+                    and batch_index % config.log_images == 0
+                ):
+                    with torch.set_grad_enabled(False):
+                        fig = create_figure(
+                            [data.sample, data.target, output],
+                            title="epoch:" + str(epoch),
                         )
+                    writer.add_figure(
+                        "input-target-output/" + phase, fig, global_step=step
+                    )
+                if phase == "train":
                     if (
                         config.log_other_metrics is not None
                         and batch_index % config.log_other_metrics == 0
                     ):
-                        step = epoch * config.batch_numbers["train"] + batch_index
                         used_mem, rate, temp = get_gpu_stats(handle)
                         additional_metrics = {
                             "Utils/efficiency": efficiency,
