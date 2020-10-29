@@ -66,6 +66,7 @@ else:
     raise NotImplementedError
 
 config.std_range = tuple(val / 255.0 for val in config.std_range)
+config.val_std /= 255.0
 
 sample_transforms = ComposeCopies([NoiseTransform(std=config.std_range)])
 target_transforms = ComposeCopies(
@@ -78,11 +79,17 @@ transforms = {
     "target": target_transforms,
 }
 
+val_transforms = {
+    "common": ComposeCopies(common_transforms),
+    "sample": ComposeCopies([NoiseTransform(std=config.val_std)]),
+    "target": None,
+}
+
 full_dataset = ImageFolderDataset(config.dataset_root, transforms=transforms)
 dataset = full_dataset.get_subset(end=config.num_examples)
 
 train_dataset, validation_dataset = dataset.split_train_validation(
-    train_percentage=config.train_percentage
+    train_percentage=config.train_percentage, val_transforms=val_transforms
 )
 
 config.dataset_sizes = {"train": len(train_dataset), "val": len(validation_dataset)}

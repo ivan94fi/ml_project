@@ -264,6 +264,13 @@ def parse_config(args=None):
         "specified as if it was applied to integer pixel values in [0, 255]. It is "
         "internally converted to be applied on floating point pixel values in [0, 1].",
     )
+    noise_group.add_argument(
+        "--val-std",
+        default=25.0,
+        type=float,
+        help="The standard deviation for noise applied to validation set. Specify a "
+        "value in [0, 255]",
+    )
 
     test_parser = subparsers.add_parser(
         "test",

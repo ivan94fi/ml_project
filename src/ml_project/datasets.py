@@ -5,7 +5,7 @@ import warnings
 from collections import namedtuple
 
 import torch
-from torch.utils.data import Dataset, random_split
+from torch.utils.data import Dataset
 
 from ml_project.image_loaders import PillowLoader
 
@@ -65,16 +65,30 @@ class ImageFolderDataset(Dataset):
         else:
             self.image_paths = image_paths
 
-        self.transforms = transforms
-        if self.transforms is not None:
-            self.common_transforms = transforms.get("common")
-            self.sample_transforms = transforms.get("sample")
-            self.target_transforms = transforms.get("target")
+        if transforms is None:
+            self.transforms = {}
+        else:
+            self.transforms = dict(transforms)
 
         if loader is None:
             self.loader = PillowLoader()
         else:
             self.loader = loader
+
+    @property
+    def common_transforms(self):
+        """Get common transforms from self.transforms."""
+        return self.transforms.get("common")
+
+    @property
+    def sample_transforms(self):
+        """Get sample transforms from self.transforms."""
+        return self.transforms.get("sample")
+
+    @property
+    def target_transforms(self):
+        """Get target transforms from self.transforms."""
+        return self.transforms.get("target")
 
     def __getitem__(self, idx):
         """
@@ -134,9 +148,12 @@ class ImageFolderDataset(Dataset):
             )
         self.image_paths = sorted(self.image_paths)
 
-    def get_subset(self, start=0, end=None):
+    def get_subset(self, start=0, end=None, indices=None):
         """Create a copy of this dataset object with a subset of images."""
-        subset_image_paths = self.image_paths[start:end]
+        if indices is None:
+            subset_image_paths = self.image_paths[start:end]
+        else:
+            subset_image_paths = [self.image_paths[i] for i in indices]
         return ImageFolderDataset(
             self.root_dir,
             image_paths=subset_image_paths,
@@ -144,7 +161,9 @@ class ImageFolderDataset(Dataset):
             loader=self.loader,
         )
 
-    def split_train_validation(self, train_length=None, train_percentage=None):
+    def split_train_validation(
+        self, train_length=None, train_percentage=None, val_transforms=None
+    ):
         """Create a train/validation split from this dataset object.
 
         Parameters
@@ -155,18 +174,20 @@ class ImageFolderDataset(Dataset):
         train_percentage : float or int
             percentage of examples to include in train split
 
+        val_transforms : dict of callables
+            transforms for the validation split. If not given, transforms from
+            the parent dataset will be applied to both splits (the default is None)
+
         Returns
         -------
-        tuple of `torch.utils.data.Dataset` objects
+        tuple of `ImageFolderDataset` objects
             the train and validation splits
 
         """
         if None not in [train_length, train_percentage]:
             raise ValueError("Use either lenght or percentage, not both")
 
-        if train_length is not None:
-            validation_length = len(self) - train_length
-        elif train_percentage is not None:
+        if train_length is None:
             if isinstance(train_percentage, int):
                 train_percentage = train_percentage / 100.0
             if not 0.0 < train_percentage <= 1.0:
@@ -174,6 +195,15 @@ class ImageFolderDataset(Dataset):
                     "The traininig percentage must be in (0.0, 1.0] or (0, 100]"
                 )
             train_length = int(len(self) * train_percentage)
-            validation_length = len(self) - train_length
 
-        return random_split(self, (train_length, validation_length))
+        indices = torch.randperm(len(self)).tolist()
+
+        train_split, validation_split = (
+            self.get_subset(indices=indices[:train_length]),
+            self.get_subset(indices=indices[train_length:]),
+        )
+
+        if val_transforms is not None:
+            validation_split.transforms = val_transforms
+
+        return train_split, validation_split
