@@ -2,6 +2,7 @@
 # pylint: skip-file
 import math
 import os
+from datetime import datetime
 
 import matplotlib.pyplot as plt
 import torch
@@ -35,6 +36,11 @@ def prepare_for_imshow(tensor, bias=None):
 
 def uniform(lower, upper):
     return torch.rand(1).item() * (upper - lower) + lower
+
+
+def checkpoint_fname_template():
+    timestamp = datetime.now().strftime("%b%d_%H-%M")
+    return "n2n_" + timestamp + "_e{}.pt"
 
 
 def get_nvml_handle(index=None):

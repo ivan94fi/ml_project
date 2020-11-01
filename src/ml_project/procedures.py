@@ -1,5 +1,6 @@
 # pylint: disable=too-many-locals,too-many-statements
 """Functions that define train/test procedures."""
+import os
 import time
 
 import torch
@@ -8,6 +9,7 @@ from torch.utils.tensorboard import SummaryWriter
 
 from ml_project.utils import (
     ProgressPrinter,
+    checkpoint_fname_template,
     create_figure,
     get_gpu_stats,
     get_nvml_handle,
@@ -44,7 +46,15 @@ def train(dataloaders, network, criterion, optimizer, config):
     )
     handle = get_nvml_handle()
 
-    for epoch in range(1, config.epochs + 1):
+    if config.checkpoint_interval is not None:
+        if not os.path.isdir(config.checkpoints_root):
+            raise ValueError("The checkpoint root is not a valid directory")
+        save_dir = os.path.join(config.checkpoints_root, "checkpoints")
+        if not os.path.exists(save_dir):
+            os.mkdir(save_dir)
+        fname_template = os.path.join(save_dir, checkpoint_fname_template())
+
+    for epoch in range(config.starting_epoch, config.epochs + 1):
         print("Epoch: {}/{}".format(epoch, config.epochs))
 
         for phase in ["train", "val"]:
@@ -150,6 +160,17 @@ def train(dataloaders, network, criterion, optimizer, config):
 
             if phase == "val":
                 print()
+
+        if (
+            config.checkpoint_interval is not None
+            and epoch % config.checkpoint_interval == 0
+        ):
+            checkpoint = {
+                "epoch": epoch,
+                "net": network.state_dict(),
+                "opt": optimizer.state_dict(),
+            }
+            torch.save(checkpoint, fname_template.format(epoch))
 
     writer.close()
     nvml_shutdown()

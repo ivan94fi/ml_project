@@ -126,6 +126,18 @@ optimizer = torch.optim.Adam(
     net.parameters(), lr=config.learning_rate, betas=(0.9, 0.99)
 )
 
+if config.start_from_checkpoint is not None:
+    print("Restore checkpoint " + config.start_from_checkpoint)
+    checkpoint = torch.load(config.start_from_checkpoint)
+    net.load_state_dict(checkpoint["net"])
+    optimizer.load_state_dict(checkpoint["opt"])
+    starting_epoch_from_checkpoint = checkpoint["epoch"] + 1
+    if config.starting_epoch == 1:
+        print("Override starting epoch value with the one found in the checkpoint")
+        config.starting_epoch = starting_epoch_from_checkpoint
+
+print("Epochs to run: {} to {}".format(config.starting_epoch, config.epochs))
+
 dataloaders = {"train": dataloader, "val": validation_dataloader}
 
 if config.command == "train":

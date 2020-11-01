@@ -1,6 +1,7 @@
 """Functions for options parsing."""
 
 import argparse
+import os
 import re
 
 from tabulate import tabulate
@@ -32,6 +33,13 @@ def _check_torch_device(value):
             "\n    Accepted values: ['cpu', 'cuda:n']".format(value)
         )
     return match.group(0)
+
+
+def _check_gt_zero(value):
+    ivalue = int(value)
+    if ivalue <= 0:
+        raise argparse.ArgumentTypeError("starting epoch must be > 0")
+    return ivalue
 
 
 def tabulate_config(config, **tabulate_kwargs):
@@ -182,7 +190,13 @@ def parse_config(args=None):
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     train_parser.add_argument(
-        "-e", "--epochs", default=2, type=int, help="Epochs for the training procedure"
+        "-e",
+        "--epochs",
+        default=2,
+        type=int,
+        help="Total number of epochs for the training procedure. If a starting epoch "
+        "is passed, epochs 1 to starting_epoch-1 are considered already done and are "
+        "skipped",
     )
     train_parser.add_argument(
         "-b",
@@ -242,6 +256,40 @@ def parse_config(args=None):
         metavar="INT",
         help="Log additionary metrics to tensorboard every INT batches during "
         "training. Pass an empty string (--log-other-metrics='') to disable",
+    )
+
+    checkpoint_group = train_parser.add_argument_group("Checkpoints settings")
+    checkpoint_group.add_argument(
+        "--start-from-checkpoint",
+        default=None,
+        type=os.path.realpath,
+        metavar="PATH",
+        help="Load a checkpoint file to restart train. Restart training from "
+        "the epoch saved in the checkpoint",
+    )
+    checkpoint_group.add_argument(
+        "--checkpoint-interval",
+        default=10,
+        type=lambda v: int(v) if v else None,
+        metavar="INT",
+        help="Save a checkpoint of the state of network and optimizer every INT "
+        "epochs. Pass an empty string (--checkpoint-interval='') to disable",
+    )
+    checkpoint_group.add_argument(
+        "--checkpoints-root",
+        default=os.path.dirname(__file__),
+        type=os.path.realpath,
+        metavar="PATH",
+        help="Root directory for checkpoints directory. The final save location "
+        "will be PATH/checkpoints. Individual files will be saved with the "
+        "following filename pattern: 'n2n_<TIMESTAMP>_<EPOCH>.pt'",
+    )
+    checkpoint_group.add_argument(
+        "--starting-epoch",
+        default=1,
+        type=_check_gt_zero,
+        help="Start training from this epoch (must be >= 1). Epochs in interval "
+        "[1, STARTING_EPOCH-1] are skipped. Used to restart train from a checkpoint",
     )
 
     noise_group = train_parser.add_argument_group("Noise settings")
