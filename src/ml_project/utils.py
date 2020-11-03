@@ -38,6 +38,25 @@ def uniform(lower, upper):
     return torch.rand(1).item() * (upper - lower) + lower
 
 
+def get_lr_dampening_factor(epoch, total_epochs, percentage_to_dampen):
+    """
+    Return the multiplicative factor used to dampen the learning rate.
+
+    The learning rate is left unchanged until the last `percentage_to_dampen`
+    percentage of training epochs. After, it is gradually decreased until it
+    reaches zero at the last epoch.
+    """
+    percentage_to_dampen /= 100
+    dampen_start_epoch = total_epochs * (1 - percentage_to_dampen)
+    dampen_factor = 1.0
+    if epoch >= dampen_start_epoch:
+        cosine_arg = (
+            (epoch - dampen_start_epoch) / percentage_to_dampen
+        ) / total_epochs
+        dampen_factor = (0.5 + math.cos(cosine_arg * math.pi) / 2) ** 2
+    return dampen_factor
+
+
 def checkpoint_fname_template():
     timestamp = datetime.now().strftime("%b%d_%H-%M")
     return "n2n_" + timestamp + "_e{}.pt"

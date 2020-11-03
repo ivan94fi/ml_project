@@ -3,6 +3,7 @@ import math
 import os
 import random
 import time
+from functools import partial
 
 import numpy as np
 import torch
@@ -14,6 +15,7 @@ from ml_project.datasets import ImageFolderDataset
 from ml_project.models import UNet
 from ml_project.procedures import test, train
 from ml_project.transforms import ComposeCopies, GaussianNoise, ResizeIfTooSmall
+from ml_project.utils import get_lr_dampening_factor
 
 complete_start = time.time()
 
@@ -138,6 +140,19 @@ if config.start_from_checkpoint is not None:
 
 print("Epochs to run: {} to {}".format(config.starting_epoch, config.epochs))
 
+lr_scheduling_function = partial(
+    get_lr_dampening_factor,
+    total_epochs=config.epochs - config.starting_epoch + 1,
+    percentage_to_dampen=50,
+)
+
+lr_scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_scheduling_function)
+
+if config.start_from_checkpoint is not None:
+    scheduler_state_dict = checkpoint["sched"]
+    scheduler_state_dict.pop("lr_lambdas", None)
+    lr_scheduler.load_state_dict(scheduler_state_dict)
+
 dataloaders = {"train": dataloader, "val": validation_dataloader}
 
 if config.command == "train":
@@ -145,7 +160,7 @@ if config.command == "train":
     print("Starting train loop")
     print()
     train_loop_start = time.time()
-    train(dataloaders, net, criterion, optimizer, config)
+    train(dataloaders, net, criterion, optimizer, lr_scheduler, config)
     train_loop_end = time.time()
     print()
     print("Train loop time: {:.5f}".format(train_loop_end - train_loop_start))

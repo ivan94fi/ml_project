@@ -18,7 +18,7 @@ from ml_project.utils import (
 )
 
 
-def train(dataloaders, network, criterion, optimizer, config):
+def train(dataloaders, network, criterion, optimizer, lr_scheduler, config):
     """Execute the trainig procedure with the passed data and configuration.
 
     Parameters
@@ -31,6 +31,8 @@ def train(dataloaders, network, criterion, optimizer, config):
         Loss function for training
     optimizer : torch.optim.Optimizer
         The optimizer instance used for training
+    lr_scheduler: torch.optim.lr_scheduler._LRScheduler
+        The learning rate scheduler
     config : argparse.Namespace-like
         All the parsed configuration. The exact class does not matter, but the
         options should be available as attributes
@@ -144,6 +146,10 @@ def train(dataloaders, network, criterion, optimizer, config):
 
             progress_printer.close_bar()
 
+            if phase == "train":
+                lr_scheduler.step()
+                writer.add_scalar("Utils/lr", lr_scheduler.get_last_lr()[0], epoch)
+
             # Epoch logging
             epoch_loss = running_loss / config.dataset_sizes[phase]
             epoch_psnr = running_psnr / config.dataset_sizes[phase]
@@ -165,10 +171,13 @@ def train(dataloaders, network, criterion, optimizer, config):
             config.checkpoint_interval is not None
             and epoch % config.checkpoint_interval == 0
         ):
+            sched_state_dict = lr_scheduler.state_dict()
+            sched_state_dict.pop("lr_lambdas", None)
             checkpoint = {
                 "epoch": epoch,
                 "net": network.state_dict(),
                 "opt": optimizer.state_dict(),
+                "sched": sched_state_dict,
             }
             torch.save(checkpoint, fname_template.format(epoch))
 
