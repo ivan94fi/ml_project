@@ -108,7 +108,7 @@ dataloader = DataLoader(
     shuffle=config.shuffle,
     num_workers=config.workers,
     pin_memory=config.pin_memory,
-    worker_init_fn=_set_external_seeds,
+    worker_init_fn=_set_external_seeds if config.fixed_seeds else None,
 )
 
 validation_dataloader = DataLoader(
@@ -117,7 +117,7 @@ validation_dataloader = DataLoader(
     shuffle=False,
     num_workers=config.workers,
     pin_memory=config.pin_memory,
-    worker_init_fn=_set_external_seeds,
+    worker_init_fn=_set_external_seeds if config.fixed_seeds else None,
 )
 
 net = UNet().to(config.device)
