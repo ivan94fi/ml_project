@@ -24,8 +24,6 @@ complete_start = time.time()
 TODO:
 * test function
 * other noise
-* logging
-* learning rate (annealing?)
 """
 # =========================================
 
