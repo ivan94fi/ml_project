@@ -11,7 +11,12 @@ from torch.utils.data import DataLoader
 from torchvision.transforms import Lambda, RandomCrop, ToTensor
 
 from ml_project.config_parser import parse_config, tabulate_config
-from ml_project.datasets import ImageFolderDataset
+from ml_project.datasets import (
+    ENV_VAR_DATASET_ROOT,
+    ENV_VAR_VALIDATION_DATASET_ROOT,
+    ImageFolderDataset,
+    read_directory_from_env,
+)
 from ml_project.models import UNet
 from ml_project.procedures import test, train
 from ml_project.transforms import ComposeCopies, GaussianNoise, ResizeIfTooSmall
@@ -68,6 +73,13 @@ else:
 config.std_range = tuple(val / 255.0 for val in config.std_range)
 config.val_std /= 255.0
 
+batch_sizes = {"train": config.batch_size, "val": config.batch_size}
+
+if config.dataset_root is None:
+    config.dataset_root = read_directory_from_env(ENV_VAR_DATASET_ROOT)
+    print("Dataset root picked from environment variable")
+print("Dataset root:", config.dataset_root)
+
 sample_transforms = ComposeCopies([NoiseTransform(std=config.std_range)])
 target_transforms = ComposeCopies(
     sample_transforms if config.train_mode == "n2n" else []
@@ -79,22 +91,41 @@ transforms = {
     "target": target_transforms,
 }
 
-val_transforms = {
-    "common": ComposeCopies(common_transforms),
-    "sample": ComposeCopies([NoiseTransform(std=config.val_std)]),
-    "target": None,
-}
-
 full_dataset = ImageFolderDataset(config.dataset_root, transforms=transforms)
 dataset = full_dataset.get_subset(end=config.num_examples)
 
-train_dataset, validation_dataset = dataset.split_train_validation(
-    train_percentage=config.train_percentage, val_transforms=val_transforms
-)
+if config.use_external_validation:
+    if config.val_dataset_root is None:
+        config.val_dataset_root = read_directory_from_env(
+            ENV_VAR_VALIDATION_DATASET_ROOT
+        )
+        print("Validation dataset root picked from environment variable")
+    print("Using external validation dataset:", config.val_dataset_root)
+
+    train_dataset = dataset
+    val_transforms = {
+        "common": ComposeCopies([ToTensor(), Lambda(lambda sample: sample - 0.5)]),
+        "sample": NoiseTransform(std=config.val_std),
+        "target": None,
+    }
+    validation_dataset = ImageFolderDataset(
+        config.val_dataset_root, transforms=val_transforms
+    )
+    batch_sizes["val"] = 1
+else:
+    val_transforms = {
+        "common": ComposeCopies([common_transforms]),
+        "sample": NoiseTransform(std=config.val_std),
+        "target": None,
+    }
+
+    train_dataset, validation_dataset = dataset.split_train_validation(
+        train_percentage=config.train_percentage, val_transforms=val_transforms
+    )
 
 config.dataset_sizes = {"train": len(train_dataset), "val": len(validation_dataset)}
 config.batch_numbers = {
-    phase: math.ceil(size / config.batch_size)
+    phase: math.ceil(size / batch_sizes[phase])
     for phase, size in config.dataset_sizes.items()
 }
 print("train dataset size:", config.dataset_sizes["train"])
@@ -102,7 +133,7 @@ print("validation dataset size:", config.dataset_sizes["val"])
 
 dataloader = DataLoader(
     train_dataset,
-    batch_size=config.batch_size,
+    batch_size=batch_sizes["train"],
     shuffle=config.shuffle,
     num_workers=config.workers,
     pin_memory=config.pin_memory,
@@ -111,7 +142,7 @@ dataloader = DataLoader(
 
 validation_dataloader = DataLoader(
     validation_dataset,
-    batch_size=config.batch_size,
+    batch_size=batch_sizes["val"],
     shuffle=False,
     num_workers=config.workers,
     pin_memory=config.pin_memory,

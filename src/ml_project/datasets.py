@@ -15,22 +15,22 @@ def is_image_file(filename):
     return os.path.splitext(filename)[1].lower() in [".jpg", ".jpeg", ".png"]
 
 
-def _read_directory_from_env():
-    """Try to read directory name from an environment variable."""
+def read_directory_from_env(env_var_name):
+    """Try to read a directory name from an environment variable."""
     try:
-        directory = os.environ[ENV_VAR_DATASET_ROOT]
-        print("Dataset root picked from environment variable")
+        directory = os.environ[env_var_name]
         return directory
-    except KeyError:
+    except KeyError as key_error:
         raise ValueError(
-            "Dataset root directory not set. Use the cli option or "
-            "the environment variable " + ENV_VAR_DATASET_ROOT
-        )
+            "Environment variable {} not set. Set it with before running the script "
+            "or use the appropriate cli option".format(env_var_name)
+        ) from key_error
 
 
 TrainingPair = namedtuple("TrainingPair", ["sample", "target"])
 
 ENV_VAR_DATASET_ROOT = "NOISE2NOISE_DATASET_ROOT"
+ENV_VAR_VALIDATION_DATASET_ROOT = "NOISE2NOISE_VALIDATION_DATASET_ROOT"
 
 
 class ImageFolderDataset(Dataset):
@@ -56,7 +56,7 @@ class ImageFolderDataset(Dataset):
 
     # pylint: disable=too-many-arguments
     def __init__(self, root_dir, image_paths=None, transforms=None, loader=None):
-        self.root_dir = _read_directory_from_env() if root_dir is None else root_dir
+        self.root_dir = root_dir
         if not os.path.isdir(self.root_dir):
             raise ValueError("dataset directory does not point to a valid directory")
 

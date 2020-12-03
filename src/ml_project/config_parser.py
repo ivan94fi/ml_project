@@ -154,12 +154,27 @@ def parse_config(args=None):
     )
 
     main_parser.add_argument(
+        "--use-external-validation",
+        default=True,
+        type=strtobool,
+        help="Whether to use a different dataset from the training one for validation.",
+    )
+    main_parser.add_argument(
         "--dataset-root",
         type=str,
         help="The root directory of the dataset to use. This directory must "
         "directly contain the images with no subdirectories. As an alternative, "
-        "the environment variable NOISE2NOISE_DATASET_ROOT can be use to specify "
+        "the environment variable NOISE2NOISE_DATASET_ROOT can be used to specify "
         "the dataset root. If given, the command line option has precedence.",
+    )
+    main_parser.add_argument(
+        "--val-dataset-root",
+        type=str,
+        help="The root directory of the validation dataset to use. This directory must "
+        "directly contain the images with no subdirectories. As an alternative, "
+        "the environment variable NOISE2NOISE_VALIDATION_DATASET_ROOT can be used "
+        "to specify the dataset root. If given, the command line option has "
+        "precedence.",
     )
     main_parser.add_argument(
         "--fixed-seeds",

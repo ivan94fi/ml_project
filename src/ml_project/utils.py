@@ -6,6 +6,7 @@ from datetime import datetime
 
 import matplotlib.pyplot as plt
 import torch
+import torch.nn.functional as F
 from py3nvml.py3nvml import (
     NVML_TEMPERATURE_GPU,
     nvmlDeviceGetHandleByIndex,
@@ -17,6 +18,8 @@ from py3nvml.py3nvml import (
 )
 from torchvision.utils import make_grid
 from tqdm import tqdm
+
+from ml_project.datasets import TrainingPair
 
 
 def to_channel_last(tensor):
@@ -55,6 +58,30 @@ def get_lr_dampening_factor(epoch, total_epochs, percentage_to_dampen):
         ) / total_epochs
         dampen_factor = (0.5 + math.cos(cosine_arg * math.pi) / 2) ** 2
     return dampen_factor
+
+
+def pad(data, divisor=32, mode="reflect"):
+    """
+    Pad the training pair with the necessary elements to make the image
+    width and height divisible for the specified divisor.
+
+    The input data is expected to be 4-dimensional, with the first dimension of
+    size 1. The first and second dimension are left untouched, pad is applied to
+    the last two dimension if necessary.
+    """
+    if data.sample.shape[0] != 1:
+        raise ValueError("The first dimension must be of size 1")
+    width = data.sample.shape[2]
+    height = data.sample.shape[3]
+
+    if width % divisor != 0 or height % divisor != 0:
+        padded_width = math.ceil(width / divisor) * divisor
+        padded_height = math.ceil(height / divisor) * divisor
+        pad_amount = (0, (padded_height - height), 0, (padded_width - width))
+        sample = F.pad(data.sample, pad_amount, mode=mode)
+        target = F.pad(data.target, pad_amount, mode=mode)
+        data = TrainingPair(sample=sample, target=target)
+    return data
 
 
 def checkpoint_fname_template():

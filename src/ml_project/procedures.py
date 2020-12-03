@@ -14,6 +14,7 @@ from ml_project.utils import (
     get_gpu_stats,
     get_nvml_handle,
     nvml_shutdown,
+    pad,
     psnr_from_mse,
 )
 
@@ -83,6 +84,11 @@ def train(dataloaders, network, criterion, optimizer, lr_scheduler, config):
             progress_printer.reset(phase)
 
             for batch_index, data in enumerate(dataloader):
+                if phase == "val":
+                    original_width = data.sample.shape[2]
+                    original_height = data.sample.shape[3]
+                    data = pad(data)
+
                 sample = data.sample.to(config.device)
                 target = data.target.to(config.device)
                 batch_size = sample.shape[0]
@@ -94,6 +100,11 @@ def train(dataloaders, network, criterion, optimizer, lr_scheduler, config):
                 with torch.set_grad_enabled(phase == "train"):
                     optimizer.zero_grad()
                     output = network(sample)
+
+                    if phase == "val":
+                        output = output[:, :, :original_width, :original_height]
+                        target = target[:, :, :original_width, :original_height]
+
                     loss = criterion(output, target)
 
                     if phase == "train":
