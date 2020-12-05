@@ -317,6 +317,14 @@ def parse_config(args=None):
     )
 
     noise_group.add_argument(
+        "--brown_gaussian_std",
+        default=None,
+        type=float,
+        metavar="STD",
+        help="Use a brown gaussian noise, with the specified standard deviation",
+    )
+
+    noise_group.add_argument(
         "--std-range",
         default=(0.0, 50.0),
         nargs=2,

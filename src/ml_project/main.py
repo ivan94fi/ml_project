@@ -19,18 +19,15 @@ from ml_project.datasets import (
 )
 from ml_project.models import UNet
 from ml_project.procedures import test, train
-from ml_project.transforms import ComposeCopies, GaussianNoise, ResizeIfTooSmall
+from ml_project.transforms import (
+    BrownGaussianNoise,
+    ComposeCopies,
+    ResizeIfTooSmall,
+    WhiteGaussianNoise,
+)
 from ml_project.utils import get_lr_dampening_factor
 
 complete_start = time.time()
-
-# =========================================
-"""
-TODO:
-* test function
-* other noise
-"""
-# =========================================
 
 config = parse_config()
 
@@ -64,8 +61,18 @@ common_transforms = ComposeCopies(
     ]
 )
 
+noise_transform = {}
 if config.noise_type == "gaussian":
-    NoiseTransform = GaussianNoise
+    if config.brown_gaussian_std is not None:
+        noise_transform["train"] = lambda: BrownGaussianNoise(
+            kernel_std=config.brown_gaussian_std, std=config.std_range
+        )
+        noise_transform["val"] = lambda: BrownGaussianNoise(
+            kernel_std=config.brown_gaussian_std, std=config.val_std
+        )
+    else:
+        noise_transform["train"] = lambda: WhiteGaussianNoise(std=config.std_range)
+        noise_transform["val"] = lambda: WhiteGaussianNoise(std=config.val_std)
 else:
     # TODO: add other types of noise
     raise NotImplementedError
@@ -80,7 +87,7 @@ if config.dataset_root is None:
     print("Dataset root picked from environment variable")
 print("Dataset root:", config.dataset_root)
 
-sample_transforms = ComposeCopies([NoiseTransform(std=config.std_range)])
+sample_transforms = ComposeCopies([noise_transform["train"]()])
 target_transforms = ComposeCopies(
     sample_transforms if config.train_mode == "n2n" else []
 )
@@ -105,7 +112,7 @@ if config.use_external_validation:
     train_dataset = dataset
     val_transforms = {
         "common": ComposeCopies([ToTensor(), Lambda(lambda sample: sample - 0.5)]),
-        "sample": NoiseTransform(std=config.val_std),
+        "sample": noise_transform["val"](),
         "target": None,
     }
     validation_dataset = ImageFolderDataset(
@@ -115,7 +122,7 @@ if config.use_external_validation:
 else:
     val_transforms = {
         "common": ComposeCopies([common_transforms]),
-        "sample": NoiseTransform(std=config.val_std),
+        "sample": noise_transform["val"](),
         "target": None,
     }
 

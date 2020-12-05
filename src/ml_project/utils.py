@@ -37,8 +37,13 @@ def prepare_for_imshow(tensor, bias=None):
     return result.clamp(0.0, 1.0)
 
 
-def uniform(lower, upper):
-    return torch.rand(1).item() * (upper - lower) + lower
+def transpose(tensor):
+    """Swap the last dimension with the second last."""
+    if tensor.dim() < 2:
+        raise ValueError("The input tensor should have at least two dimensions")
+    dims = list(range(tensor.dim()))
+    dims[-2:] = dims[-2:][::-1]
+    return tensor.permute(dims)
 
 
 def get_lr_dampening_factor(epoch, total_epochs, percentage_to_dampen):
@@ -82,6 +87,44 @@ def pad(data, divisor=32, mode="reflect"):
         target = F.pad(data.target, pad_amount, mode=mode)
         data = TrainingPair(sample=sample, target=target)
     return data
+
+
+def get_gaussian_kernel(stddev, dimensions=1, size=None, limit=4):
+    """
+    Return a gaussian kernel with the given standard deviation.
+
+    Parameters
+    ----------
+    stddev : float
+        Standard deviation of the gaussian kernel
+    dimensions: int
+        Control the dimensions of the kernel (mono or bi-dimensional)
+    size : int
+        Use a predefined size for the kernel. If None, compute the size as
+        round(limit * stddev)
+    limit : int
+        Limit for kernel size
+
+    Returns
+    -------
+    Torch.tensor
+        The constructed (1D or 2D) gaussian kernel (normalized)
+
+    """
+    if size is not None:
+        radius = size // 2
+        ksize = size
+    else:
+        radius = round(limit * stddev)
+        ksize = (radius * 2) + 1
+    kernel_1d = torch.exp(
+        -0.5 * ((torch.arange(ksize, dtype=torch.float) - radius) / stddev) ** 2
+    )
+    if dimensions == 1:
+        kernel = kernel_1d
+    else:
+        kernel = torch.ger(kernel_1d, kernel_1d)
+    return kernel / kernel.sum()
 
 
 def checkpoint_fname_template():
