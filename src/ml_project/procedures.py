@@ -69,7 +69,6 @@ def train(dataloaders, network, criterion, optimizer, lr_scheduler, config):
                 network.eval()
 
             running_loss = 0.0
-            running_efficiency = 0.0
             running_psnr = 0.0
 
             start_time = time.time()
@@ -116,7 +115,6 @@ def train(dataloaders, network, criterion, optimizer, lr_scheduler, config):
                 current_loss = loss.item()
                 running_loss += current_loss * batch_size
                 efficiency = process_time / (prepare_time + process_time)
-                running_efficiency += efficiency
                 psnr = psnr_from_mse(current_loss)
                 running_psnr += psnr * batch_size
 
