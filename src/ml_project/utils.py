@@ -1,5 +1,4 @@
-# flake8: noqa
-# pylint: skip-file
+"""Utility functions and classes."""
 import math
 import os
 from datetime import datetime
@@ -23,14 +22,17 @@ from ml_project.datasets import TrainingPair
 
 
 def to_channel_last(tensor):
+    """Move channel axis in last position."""
     return tensor.permute(1, 2, 0)
 
 
 def to_channel_first(tensor):
+    """Move channel axis in first position."""
     return tensor.permute(2, 0, 1)
 
 
 def prepare_for_imshow(tensor, bias=None):
+    """Convert to channel last, add bias, clamp to [0, 1]."""
     result = to_channel_last(tensor)
     if bias:
         result += bias
@@ -67,12 +69,15 @@ def get_lr_dampening_factor(epoch, total_epochs, percentage_to_dampen):
 
 def pad(data, divisor=32, mode="reflect"):
     """
-    Pad the training pair with the necessary elements to make the image
-    width and height divisible for the specified divisor.
+    Pad the training pair.
+
+    The padding applied is enough to make the image width and height divisible
+    for the specified divisor.
 
     The input data is expected to be 4-dimensional, with the first dimension of
     size 1. The first and second dimension are left untouched, pad is applied to
     the last two dimension if necessary.
+
     """
     if data.sample.shape[0] != 1:
         raise ValueError("The first dimension must be of size 1")
@@ -128,6 +133,7 @@ def get_gaussian_kernel(stddev, dimensions=1, size=None, limit=4):
 
 
 def checkpoint_fname_template():
+    """Return a filename template: 'n2n_<current_timestamp>_e{}.pt'."""
     timestamp = datetime.now().strftime("%b%d_%H-%M")
     return "n2n_" + timestamp + "_e{}.pt"
 
@@ -159,6 +165,7 @@ def get_gpu_stats(handle):
     mem = nvmlDeviceGetMemoryInfo(handle)
     rates = nvmlDeviceGetUtilizationRates(handle)
     temp = nvmlDeviceGetTemperature(handle, NVML_TEMPERATURE_GPU)
+    # pylint: disable=no-member
     return (mem.used / 1024 / 1024, rates.gpu, temp)
 
 
@@ -175,11 +182,11 @@ def create_figure(images, title=None):
     obtained are plotted in column in a matplotlib figure.
     """
     fig, axes = plt.subplots(len(images), 1)
-    for ax, image in zip(axes, images):
+    for axis, image in zip(axes, images):
         image = prepare_for_imshow(make_grid(image.detach().clone().cpu()), 0.5)
-        ax.imshow(image)
-        ax.get_xaxis().set_visible(False)
-        ax.get_yaxis().set_visible(False)
+        axis.imshow(image)
+        axis.get_xaxis().set_visible(False)
+        axis.get_yaxis().set_visible(False)
     fig.tight_layout(pad=0, w_pad=0, h_pad=0)
     fig.suptitle(
         title,
@@ -195,10 +202,17 @@ class ProgressPrinter:
 
     def __init__(self, config, progress_template):
         super().__init__()
+
+        self.phase = None
+        self.batch_index = None
+        self.batch_size = None
+        self.progress_bar = None
+
         self.config = config
         self.progress_template = progress_template
 
     def reset(self, phase):
+        """Configure for the passed phase."""
         self.phase = phase
         self.batch_index = None
         self.batch_size = None
@@ -226,7 +240,12 @@ class ProgressPrinter:
         )
 
     def show_epoch_progress(self, *metrics):
-        """Print info on metrics. If self.progress_bar is disabled, use a simple print to stdout."""
+        """
+        Print info on metrics.
+
+        If self.progress_bar is disabled, use a simple print to stdout.
+
+        """
         if self._should_print():
             metrics_str = self.progress_template.format(*metrics)
             if self.progress_bar.disable:
@@ -241,13 +260,16 @@ class ProgressPrinter:
                 self.progress_bar.set_postfix_str(metrics_str)
 
     def update_bar(self, n):
+        """Set the iteration index on the bar."""
         self.progress_bar.update(n)
 
     def close_bar(self):
+        """Close the bar and remove the postfix string."""
         self.progress_bar.set_postfix_str("")
         self.progress_bar.close()
 
     def update_batch_info(self, batch_size, batch_index):
+        """Update batch size as it can vary throughout iterations."""
         self.batch_size = batch_size
         self.batch_index = batch_index
 
@@ -282,34 +304,3 @@ def calculate_psnr(image, target, data_range=1.0, eps=1e-8):
 def psnr_from_mse(mse, data_range=1.0, eps=1e-8):
     """Compute the PSNR from the given mean square error value."""
     return 10.0 * math.log10(eps + (data_range ** 2) / mse)
-
-
-class _RepeatSampler:
-    """Sampler that repeats forever."""
-
-    def __init__(self, sampler):
-        self.sampler = sampler
-
-    def __iter__(self):
-        while True:
-            yield from iter(self.sampler)
-
-
-class FastDataLoader(torch.utils.data.DataLoader):
-    """
-    Dataloader with process reuse taken from pytorch issue 15849.
-
-    See https://github.com/pytorch/pytorch/issues/15849 for more information.
-    """
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        object.__setattr__(self, "batch_sampler", _RepeatSampler(self.batch_sampler))
-        self.iterator = super().__iter__()
-
-    def __len__(self):
-        return len(self.batch_sampler.sampler)
-
-    def __iter__(self):
-        for _ in range(len(self)):
-            yield next(self.iterator)
