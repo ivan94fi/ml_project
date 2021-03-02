@@ -9,11 +9,10 @@ dependencies:
   - pytorch=<PYTORCH_VERSION>         *ERROR* Use make to generate final environment.yml
   - cudatoolkit=<CUDATOOLKIT_VERSION> *ERROR* Use make to generate final environment.yml
   - torchvision
-  - mlflow
-  - crc32c
-  - psycopg2
   - tqdm
   - matplotlib
   - py3nvml
+  - tensorboard
+  - tabulate
   - pip:
     - prefetch_generator
