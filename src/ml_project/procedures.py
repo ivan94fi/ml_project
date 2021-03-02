@@ -139,14 +139,19 @@ def train(dataloaders, network, criterion, optimizer, lr_scheduler, config):
                         config.log_other_metrics is not None
                         and batch_index % config.log_other_metrics == 0
                     ):
-                        used_mem, rate, temp = get_gpu_stats(handle)
                         additional_metrics = {
                             "Utils/efficiency": efficiency,
                             "Utils/iter_time": prepare_time + process_time,
-                            "Utils/GPU/mem_used": used_mem,
-                            "Utils/GPU/util": rate,
-                            "Utils/GPU/temp": temp,
                         }
+                        if handle is not None:
+                            used_mem, rate, temp = get_gpu_stats(handle)
+                            additional_metrics.update(
+                                {
+                                    "Utils/GPU/mem_used": used_mem,
+                                    "Utils/GPU/util": rate,
+                                    "Utils/GPU/temp": temp,
+                                }
+                            )
                         for tag, value in additional_metrics.items():
                             writer.add_scalar(tag, value, global_step=step)
 

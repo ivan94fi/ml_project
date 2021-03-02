@@ -118,7 +118,6 @@ if config.use_external_validation:
     validation_dataset = ImageFolderDataset(
         config.val_dataset_root, transforms=val_transforms
     )
-    batch_sizes["val"] = 1
 else:
     val_transforms = {
         "common": ComposeCopies([common_transforms]),
@@ -129,6 +128,7 @@ else:
     train_dataset, validation_dataset = dataset.split_train_validation(
         train_percentage=config.train_percentage, val_transforms=val_transforms
     )
+batch_sizes["val"] = 1
 
 config.dataset_sizes = {"train": len(train_dataset), "val": len(validation_dataset)}
 config.batch_numbers = {

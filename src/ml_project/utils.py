@@ -140,6 +140,8 @@ def checkpoint_fname_template():
 
 def get_nvml_handle(index=None):
     """Return an handle to the current gpu to query some stats."""
+    if not torch.cuda.is_available():
+        return None
     if index is None:
         index = torch.cuda.current_device()
         visible_devices = os.environ.get("CUDA_VISIBLE_DEVICES")
@@ -171,7 +173,8 @@ def get_gpu_stats(handle):
 
 def nvml_shutdown():
     """Free resources occupied by nvml."""
-    nvmlShutdown()
+    if torch.cuda.is_available():
+        nvmlShutdown()
 
 
 def create_figure(images, title=None):
