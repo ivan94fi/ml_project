@@ -179,7 +179,7 @@ print("Epochs to run: {} to {}".format(config.starting_epoch, config.epochs))
 lr_scheduling_function = partial(
     get_lr_dampening_factor,
     total_epochs=config.epochs - config.starting_epoch + 1,
-    percentage_to_dampen=50,
+    percentage_to_dampen=60,
 )
 
 lr_scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_scheduling_function)
