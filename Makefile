@@ -117,7 +117,7 @@ ifdef cudatoolkit
 	{ sed -E 's/<PYTORCH_VERSION>.*$$/$(pytorch)/;s/<CUDATOOLKIT_VERSION>.*$$/$(cudatoolkit)/;/^# WARNING/d' .template_environment.yml > environment.yml && conda env create --file environment.yml; } || { echo "Error during environment creation"; exit 1; }
 	echo ""
 	echo "Environment created."
-	echo "Activate environmante with 'conda activate n2n'"
+	echo "Activate environment with 'conda activate n2n'"
 	echo "The package must then be installed with 'make install' or 'make install-dev'"
 	echo ""
 	echo "After installing, you can check that pytorch can connect with the gpu with 'make check-env'"

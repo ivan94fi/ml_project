@@ -4,7 +4,7 @@ conda_home=$HOME/miniconda3
 
 if [ ! -e /tmp/$installer ];
 then
-    echo "downloadind the installer.."
+    echo "downloading the installer.."
     wget https://repo.anaconda.com/miniconda/$installer -O /tmp/$installer
 fi
 
