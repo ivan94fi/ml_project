@@ -178,13 +178,11 @@ def train(dataloaders, network, criterion, optimizer, lr_scheduler, config):
             config.checkpoint_interval is not None
             and epoch % config.checkpoint_interval == 0
         ):
-            sched_state_dict = lr_scheduler.state_dict()
-            sched_state_dict.pop("lr_lambdas", None)
             checkpoint = {
                 "epoch": epoch,
                 "net": network.state_dict(),
                 "opt": optimizer.state_dict(),
-                "sched": sched_state_dict,
+                "sched": lr_scheduler.state_dict(),
             }
             torch.save(checkpoint, fname_template.format(epoch))
 

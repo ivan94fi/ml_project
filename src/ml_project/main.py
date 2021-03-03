@@ -164,32 +164,31 @@ optimizer = torch.optim.Adam(
     net.parameters(), lr=config.learning_rate, betas=(0.9, 0.99)
 )
 
-if config.start_from_checkpoint is not None:
-    print("Restore checkpoint " + config.start_from_checkpoint)
-    checkpoint = torch.load(config.start_from_checkpoint)
-    net.load_state_dict(checkpoint["net"])
-    optimizer.load_state_dict(checkpoint["opt"])
-    starting_epoch_from_checkpoint = checkpoint["epoch"] + 1
-    if config.starting_epoch == 1:
-        print("Override starting epoch value with the one found in the checkpoint")
-        config.starting_epoch = starting_epoch_from_checkpoint
-
-print("Epochs to run: {} to {}".format(config.starting_epoch, config.epochs))
-
+# total_epochs must always be the entire number of epochs: restart handled by restoring scheduler
 lr_scheduling_function = partial(
     get_lr_dampening_factor,
-    total_epochs=config.epochs - config.starting_epoch + 1,
+    total_epochs=config.epochs,
     percentage_to_dampen=60,
 )
 
 lr_scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_scheduling_function)
 
 if config.start_from_checkpoint is not None:
-    scheduler_state_dict = checkpoint["sched"]
-    scheduler_state_dict.pop("lr_lambdas", None)
-    lr_scheduler.load_state_dict(scheduler_state_dict)
+    print("Restore checkpoint " + config.start_from_checkpoint)
+    checkpoint = torch.load(config.start_from_checkpoint)
+    net.load_state_dict(checkpoint["net"])
+    optimizer.load_state_dict(checkpoint["opt"])
+    lr_scheduler.load_state_dict(checkpoint["sched"])
+    if config.starting_epoch == 1:
+        print("Overriding starting epoch value with the one found in the checkpoint")
+        config.starting_epoch = checkpoint["epoch"] + 1
+    else:
+        # TODO: handle conflicts between starting epoch and checkpoint epoch
+        raise NotImplementedError("Still not supported")
 
 dataloaders = {"train": dataloader, "val": validation_dataloader}
+
+print("Epochs to run: {} to {}".format(config.starting_epoch, config.epochs))
 
 if config.command == "train":
     print()
