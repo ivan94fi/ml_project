@@ -133,12 +133,6 @@ def parse_config(args=None):
         help="Whether to randomly shuffle the dataset upon loading",
     )
     main_parser.add_argument(
-        "--bg-generator",
-        default=True,
-        type=strtobool,
-        help="Whether to use a background generator to retrieve data from disk",
-    )
-    main_parser.add_argument(
         "-w",
         "--workers",
         default=4,

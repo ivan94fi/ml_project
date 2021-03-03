@@ -4,7 +4,6 @@ import os
 import time
 
 import torch
-from prefetch_generator import BackgroundGenerator
 from torch.utils.tensorboard import SummaryWriter
 
 from ml_project.utils import (
@@ -74,15 +73,9 @@ def train(dataloaders, network, criterion, optimizer, lr_scheduler, config):
             start_time = time.time()
             epoch_start_time = start_time
 
-            dataloader = (
-                BackgroundGenerator(dataloaders[phase])
-                if config.bg_generator
-                else dataloaders[phase]
-            )
-
             progress_printer.reset(phase)
 
-            for batch_index, data in enumerate(dataloader):
+            for batch_index, data in enumerate(dataloaders[phase]):
                 if phase == "val":
                     original_width = data.sample.shape[2]
                     original_height = data.sample.shape[3]

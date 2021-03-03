@@ -14,5 +14,3 @@ dependencies:
   - py3nvml
   - tensorboard
   - tabulate
-  - pip:
-    - prefetch_generator
