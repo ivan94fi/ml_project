@@ -164,11 +164,10 @@ optimizer = torch.optim.Adam(
     net.parameters(), lr=config.learning_rate, betas=(0.9, 0.99)
 )
 
-# total_epochs must always be the entire number of epochs: restart handled by restoring scheduler
+# total_epochs must always be the entire number of epochs: restart handled by
+# restoring scheduler
 lr_scheduling_function = partial(
-    get_lr_dampening_factor,
-    total_epochs=config.epochs,
-    percentage_to_dampen=60,
+    get_lr_dampening_factor, total_epochs=config.epochs, percentage_to_dampen=60,
 )
 
 lr_scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_scheduling_function)
@@ -179,12 +178,18 @@ if config.start_from_checkpoint is not None:
     net.load_state_dict(checkpoint["net"])
     optimizer.load_state_dict(checkpoint["opt"])
     lr_scheduler.load_state_dict(checkpoint["sched"])
-    if config.starting_epoch == 1:
-        print("Overriding starting epoch value with the one found in the checkpoint")
-        config.starting_epoch = checkpoint["epoch"] + 1
-    else:
-        # TODO: handle conflicts between starting epoch and checkpoint epoch
-        raise NotImplementedError("Still not supported")
+    print("Overriding starting epoch value with the one found in the checkpoint")
+    if config.starting_epoch != 1:
+        # a starting epoch is passed from cli: check that it matches the one in
+        # checkpoint
+        if config.starting_epoch != checkpoint["epoch"]:
+            raise ValueError(
+                "Mismatch between epochs in checkpoint "
+                "and command line argument: got {} and {}.".format(
+                    checkpoint["epoch"], config.starting_epoch
+                )
+            )
+    config.starting_epoch = checkpoint["epoch"] + 1
 
 dataloaders = {"train": dataloader, "val": validation_dataloader}
 
