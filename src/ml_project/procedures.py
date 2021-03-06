@@ -6,6 +6,7 @@ import time
 import torch
 from torch.utils.tensorboard import SummaryWriter
 
+from ml_project.loggers import ConditionalLogger, CounterSubject, IterableSubject
 from ml_project.utils import (
     ProgressPrinter,
     checkpoint_fname_template,
@@ -58,10 +59,19 @@ def train(  # noqa: C901
             os.mkdir(save_dir)
         fname_template = os.path.join(save_dir, checkpoint_fname_template())
 
-    for epoch in range(config.starting_epoch, config.epochs + 1):
+    epochs = IterableSubject()
+    phases = IterableSubject()
+    checkpoint_logger = ConditionalLogger({"step": epochs}, config.checkpoint_interval)
+    iterations = CounterSubject()
+    image_logger = ConditionalLogger({"step": iterations}, config.log_images)
+    additional_logger = ConditionalLogger(
+        {"step": iterations, "phase": phases}, config.log_other_metrics, "train"
+    )
+
+    for epoch in epochs.iter(range(config.starting_epoch, config.epochs + 1)):
         print("Epoch: {}/{}".format(epoch, config.epochs))
 
-        for phase in ["train", "val"]:
+        for phase in phases.iter(["train", "val"]):
             print("- " + phase.capitalize() + " step...")
 
             if phase == "train":
@@ -77,7 +87,7 @@ def train(  # noqa: C901
 
             progress_printer.reset(phase)
 
-            for batch_index, data in enumerate(dataloaders[phase]):
+            for batch_index, data in enumerate(iterations.iter(dataloaders[phase])):
                 if phase == "val":
                     original_width = data.sample.shape[2]
                     original_height = data.sample.shape[3]
@@ -109,55 +119,38 @@ def train(  # noqa: C901
 
                 current_loss = loss.item()
                 running_loss += current_loss * batch_size
-                efficiency = process_time / (prepare_time + process_time)
+                iter_time = prepare_time + process_time
+                efficiency = process_time / iter_time
                 psnr = psnr_from_mse(current_loss)
                 running_psnr += psnr * batch_size
 
-                progress_printer.show_epoch_progress(current_loss, psnr)
-
                 # Iteration logging
-                step = epoch * config.batch_numbers[phase] + batch_index
-                if (
-                    config.log_images is not None
-                    and batch_index % config.log_images == 0
-                ):
-                    with torch.set_grad_enabled(False):
-                        fig = create_figure(
-                            [data.sample, data.target, output],
-                            title="epoch:" + str(epoch),
-                        )
+                global_step = epoch * config.batch_numbers[phase] + batch_index
+                if image_logger.should_log():
+                    tensors = [data.sample, data.target, output]
+                    fig = create_figure(tensors, title="epoch:" + str(epoch))
                     writer.add_figure(
-                        "input-target-output/" + phase, fig, global_step=step
+                        "input-target-output/" + phase, fig, global_step=global_step
                     )
-                if phase == "train":
-                    if (
-                        config.log_other_metrics is not None
-                        and batch_index % config.log_other_metrics == 0
-                    ):
-                        additional_metrics = {
-                            "Utils/efficiency": efficiency,
-                            "Utils/iter_time": prepare_time + process_time,
-                        }
-                        if handle is not None:
-                            used_mem, rate, temp = get_gpu_stats(handle)
-                            additional_metrics.update(
-                                {
-                                    "Utils/GPU/mem_used": used_mem,
-                                    "Utils/GPU/util": rate,
-                                    "Utils/GPU/temp": temp,
-                                }
-                            )
-                        for tag, value in additional_metrics.items():
-                            writer.add_scalar(tag, value, global_step=step)
+                if additional_logger.should_log():
+                    additional_metrics = {
+                        "Utils/efficiency": efficiency,
+                        "Utils/iter_time": iter_time,
+                    }
+                    if handle is not None:
+                        used_mem, rate, temp = get_gpu_stats(handle)
+                        additional_metrics["Utils/GPU/mem_used"] = used_mem
+                        additional_metrics["Utils/GPU/util"] = rate
+                        additional_metrics["Utils/GPU/temp"] = temp
+                    for tag, value in additional_metrics.items():
+                        writer.add_scalar(tag, value, global_step=global_step)
+
+                progress_printer.show_epoch_progress(current_loss, psnr)
 
                 progress_printer.update_bar(batch_size)
                 start_time = time.time()
 
             progress_printer.close_bar()
-
-            if phase == "train":
-                lr_scheduler.step()
-                writer.add_scalar("Utils/lr", lr_scheduler.get_last_lr()[0], epoch)
 
             # Epoch logging
             epoch_loss = running_loss / config.dataset_sizes[phase]
@@ -169,17 +162,17 @@ def train(  # noqa: C901
             )
             writer.add_scalar("Metrics/Loss/" + phase, epoch_loss, epoch)
             writer.add_scalar("Metrics/PSNR/" + phase, epoch_psnr, epoch)
+
             if phase == "train":
+                lr_scheduler.step()
+                writer.add_scalar("Utils/lr", lr_scheduler.get_last_lr()[0], epoch)
                 epoch_time = int(start_time - epoch_start_time)
                 writer.add_scalar("Utils/epoch_time", epoch_time, epoch)
 
             if phase == "val":
                 print()
 
-        if (
-            config.checkpoint_interval is not None
-            and epoch % config.checkpoint_interval == 0
-        ):
+        if checkpoint_logger.should_log():
             checkpoint = {
                 "epoch": epoch,
                 "net": network.state_dict(),

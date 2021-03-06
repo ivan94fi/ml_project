@@ -185,11 +185,12 @@ def create_figure(images, title=None):
     obtained are plotted in column in a matplotlib figure.
     """
     fig, axes = plt.subplots(len(images), 1)
-    for axis, image in zip(axes, images):
-        image = prepare_for_imshow(make_grid(image.detach().clone().cpu()), 0.5)
-        axis.imshow(image)
-        axis.get_xaxis().set_visible(False)
-        axis.get_yaxis().set_visible(False)
+    with torch.set_grad_enabled(False):
+        for axis, image in zip(axes, images):
+            image = prepare_for_imshow(make_grid(image.detach().clone().cpu()), 0.5)
+            axis.imshow(image)
+            axis.get_xaxis().set_visible(False)
+            axis.get_yaxis().set_visible(False)
     fig.tight_layout(pad=0, w_pad=0, h_pad=0)
     fig.suptitle(
         title,
