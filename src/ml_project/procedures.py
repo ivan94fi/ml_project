@@ -1,4 +1,4 @@
-# pylint: disable=too-many-locals,too-many-statements
+# pylint: disable=R0912,R0913,R0914,R0915
 """Functions that define train/test procedures."""
 import os
 import time
@@ -18,7 +18,9 @@ from ml_project.utils import (
 )
 
 
-def train(dataloaders, network, criterion, optimizer, lr_scheduler, config):
+def train(  # noqa: C901
+    dataloaders, network, criterion, optimizer, lr_scheduler, config
+):
     """Execute the trainig procedure with the passed data and configuration.
 
     Parameters
