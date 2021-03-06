@@ -129,21 +129,15 @@ def train(  # noqa: C901
                 if image_logger.should_log():
                     tensors = [data.sample, data.target, output]
                     fig = create_figure(tensors, title="epoch:" + str(epoch))
-                    writer.add_figure(
-                        "input-target-output/" + phase, fig, global_step=global_step
-                    )
+                    writer.add_figure("input-target-output/" + phase, fig, global_step)
                 if additional_logger.should_log():
-                    additional_metrics = {
-                        "Utils/efficiency": efficiency,
-                        "Utils/iter_time": iter_time,
-                    }
+                    writer.add_scalar("Utils/efficiency", efficiency, global_step)
+                    writer.add_scalar("Utils/iter_time", iter_time, global_step)
                     if handle is not None:
                         used_mem, rate, temp = get_gpu_stats(handle)
-                        additional_metrics["Utils/GPU/mem_used"] = used_mem
-                        additional_metrics["Utils/GPU/util"] = rate
-                        additional_metrics["Utils/GPU/temp"] = temp
-                    for tag, value in additional_metrics.items():
-                        writer.add_scalar(tag, value, global_step=global_step)
+                        writer.add_scalar("Utils/GPU/mem_used", used_mem, global_step)
+                        writer.add_scalar("Utils/GPU/util", rate, global_step)
+                        writer.add_scalar("Utils/GPU/temp", temp, global_step)
 
                 progress_printer.show_epoch_progress(current_loss, psnr)
 
