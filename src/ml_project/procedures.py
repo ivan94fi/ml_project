@@ -8,6 +8,7 @@ from torch.utils.tensorboard import SummaryWriter
 
 from ml_project.loggers import ConditionalLogger, CounterSubject, IterableSubject
 from ml_project.utils import (
+    MetricTracker,
     ProgressPrinter,
     checkpoint_fname_template,
     create_figure,
@@ -79,8 +80,8 @@ def train(  # noqa: C901
             else:
                 network.eval()
 
-            running_loss = 0.0
-            running_psnr = 0.0
+            running_loss = MetricTracker()
+            running_psnr = MetricTracker()
 
             start_time = time.time()
             epoch_start_time = start_time
@@ -117,12 +118,10 @@ def train(  # noqa: C901
 
                 process_time = time.time() - start_time - prepare_time
 
-                current_loss = loss.item()
-                running_loss += current_loss * batch_size
+                running_loss.update(loss.item(), batch_size)
                 iter_time = prepare_time + process_time
                 efficiency = process_time / iter_time
-                psnr = psnr_from_mse(current_loss)
-                running_psnr += psnr * batch_size
+                running_psnr.update(psnr_from_mse(running_loss.last_value), batch_size)
 
                 # Iteration logging
                 global_step = epoch * config.batch_numbers[phase] + batch_index
@@ -139,16 +138,17 @@ def train(  # noqa: C901
                         writer.add_scalar("Utils/GPU/util", rate, global_step)
                         writer.add_scalar("Utils/GPU/temp", temp, global_step)
 
-                progress_printer.show_epoch_progress(current_loss, psnr)
-
+                progress_printer.show_epoch_progress(
+                    running_loss.last_value, running_psnr.last_value
+                )
                 progress_printer.update_bar(batch_size)
                 start_time = time.time()
 
             progress_printer.close_bar()
 
             # Epoch logging
-            epoch_loss = running_loss / config.dataset_sizes[phase]
-            epoch_psnr = running_psnr / config.dataset_sizes[phase]
+            epoch_loss = running_loss.average
+            epoch_psnr = running_psnr.average
             print(
                 "{} concluded. Loss: {:.3f} PSNR: {:.3f}".format(
                     phase.capitalize(), epoch_loss, epoch_psnr

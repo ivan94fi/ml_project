@@ -201,6 +201,30 @@ def create_figure(images, title=None):
     return fig
 
 
+class MetricTracker:
+    """Compute and store the average and current value of a metric."""
+
+    def __init__(self):
+        self.last_value = 0
+        self.average = 0.0
+        self.sum = 0
+        self.count = 0
+
+    def reset(self):
+        """Reset to zero."""
+        self.last_value = 0
+        self.average = 0.0
+        self.sum = 0
+        self.count = 0
+
+    def update(self, value, n=1):
+        """Update the tracked metric with a new value."""
+        self.last_value = value
+        self.sum += value * n
+        self.count += n
+        self.average = self.sum / self.count
+
+
 class ProgressPrinter:
     """Utility class to handle a tqdm progress bar."""
 
