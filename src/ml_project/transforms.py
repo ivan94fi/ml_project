@@ -126,6 +126,10 @@ class BrownGaussianNoise(WhiteGaussianNoise):
         super().__init__(mean, std)
         self.kernel_std = kernel_std
         self.kernel_size = kernel_size
+        self.kernel = get_gaussian_kernel(self.kernel_std, size=self.kernel_size)
+        self.kernel_radius = self.kernel.shape[0] // 2
+        self.kernel = self.kernel.expand(3, 1, 1, -1)
+        self.pad_amount = (self.kernel_radius,) * 4
 
     def __call__(self, sample):
         """Add brown gaussian noise to the input sample."""
@@ -137,18 +141,14 @@ class BrownGaussianNoise(WhiteGaussianNoise):
 
     def filter_noise(self, noise):
         """Filter the noise in input."""
-        kernel = get_gaussian_kernel(self.kernel_std, size=self.kernel_size)
 
-        radius = kernel.shape[0] // 2
-        kernel = kernel.expand(3, 1, 1, -1)
         noise = noise.unsqueeze(0)
-        pad_amount = (radius,) * 4
-
         row_filtered_noise = F.conv1d(
-            F.pad(noise, pad_amount, mode="reflect"), kernel, groups=3
+            F.pad(noise, self.pad_amount, mode="reflect"), self.kernel, groups=3
         )
-        filtered_noise = F.conv1d(transpose(row_filtered_noise), kernel, groups=3)
+        filtered_noise = F.conv1d(transpose(row_filtered_noise), self.kernel, groups=3)
         filtered_noise = transpose(filtered_noise.squeeze(0))
+
         return filtered_noise
 
     def __repr__(self):
