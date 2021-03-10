@@ -22,6 +22,7 @@ from ml_project.procedures import test, train
 from ml_project.transforms import (
     BrownGaussianNoise,
     ComposeCopies,
+    PoissonNoise,
     ResizeIfTooSmall,
     WhiteGaussianNoise,
 )
@@ -73,12 +74,14 @@ if config.noise_type == "gaussian":
     else:
         noise_transform["train"] = lambda: WhiteGaussianNoise(std=config.std_range)
         noise_transform["val"] = lambda: WhiteGaussianNoise(std=config.val_std)
+    config.std_range = tuple(val / 255.0 for val in config.std_range)
+    config.val_std /= 255.0
+elif config.noise_type == "poisson":
+    noise_transform["train"] = lambda: PoissonNoise(lmbda=config.std_range)
+    noise_transform["val"] = lambda: PoissonNoise(lmbda=config.val_std)
 else:
     # TODO: add other types of noise
     raise NotImplementedError
-
-config.std_range = tuple(val / 255.0 for val in config.std_range)
-config.val_std /= 255.0
 
 batch_sizes = {"train": config.batch_size, "val": config.batch_size}
 

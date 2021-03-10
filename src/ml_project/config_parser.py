@@ -305,7 +305,7 @@ def parse_config(args=None):
     noise_group.add_argument(
         "--noise-type",
         default="gaussian",
-        choices=["gaussian"],
+        choices=["gaussian", "poisson"],
         type=str,
         help="The type of noise to add to the examples/targets",
     )
