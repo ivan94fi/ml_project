@@ -22,6 +22,7 @@ from ml_project.procedures import test, train
 from ml_project.transforms import (
     BrownGaussianNoise,
     ComposeCopies,
+    PoissonNoise,
     ResizeIfTooSmall,
     WhiteGaussianNoise,
 )
@@ -61,24 +62,33 @@ common_transforms = ComposeCopies(
     ]
 )
 
+if config.val_param is None:
+    if config.noise_type == "gaussian":
+        default_val_param = 25
+    elif config.noise_type == "poisson":
+        default_val_param = 30
+    print("Val param not passed. Overriding with default " + default_val_param)
+    config.val_param = default_val_param
+
 noise_transform = {}
 if config.noise_type == "gaussian":
+    config.train_params = tuple(val / 255.0 for val in config.train_params)
+    config.val_param /= 255.0
     if config.brown_gaussian_std is not None:
         noise_transform["train"] = lambda: BrownGaussianNoise(
-            kernel_std=config.brown_gaussian_std, std=config.std_range
+            kernel_std=config.brown_gaussian_std, std=config.train_params
         )
         noise_transform["val"] = lambda: BrownGaussianNoise(
-            kernel_std=config.brown_gaussian_std, std=config.val_std
+            kernel_std=config.brown_gaussian_std, std=config.val_param
         )
     else:
-        noise_transform["train"] = lambda: WhiteGaussianNoise(std=config.std_range)
-        noise_transform["val"] = lambda: WhiteGaussianNoise(std=config.val_std)
+        noise_transform["train"] = lambda: WhiteGaussianNoise(std=config.train_params)
+        noise_transform["val"] = lambda: WhiteGaussianNoise(std=config.val_param)
+elif config.noise_type == "poisson":
+    noise_transform["train"] = lambda: PoissonNoise(lmbda=config.train_params)
+    noise_transform["val"] = lambda: PoissonNoise(lmbda=config.val_param)
 else:
-    # TODO: add other types of noise
     raise NotImplementedError
-
-config.std_range = tuple(val / 255.0 for val in config.std_range)
-config.val_std /= 255.0
 
 batch_sizes = {"train": config.batch_size, "val": config.batch_size}
 

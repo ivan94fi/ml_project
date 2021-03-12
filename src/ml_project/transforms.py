@@ -158,6 +158,52 @@ class BrownGaussianNoise(WhiteGaussianNoise):
         )
 
 
+class PoissonNoise:
+    """
+    Custom transform to add Poisson noise to a tensor.
+
+    Parameters
+    ----------
+    lmbda: float or tuple of float
+        The standard deviation of the noise to apply. If this parameter is a
+        tuple, it is assumed to be the range from which the actual standard
+        deviation will be sampled randomly (uniformly) for each example
+
+    """
+
+    def __init__(self, lmbda=1.0):
+        self.lmbda = lmbda
+        self.lmbda_is_range = False
+        try:
+            self.lmbda = float(self.lmbda)
+        except TypeError as t_e:
+            if isinstance(self.lmbda, (tuple, list)):
+                if len(self.lmbda) != 2:
+                    raise ValueError("lmbda must be a tuple with size 2") from t_e
+                try:
+                    self.lmbda = tuple(map(float, self.lmbda))
+                    self.lmbda_is_range = True
+                except ValueError as e:
+                    raise ValueError("lmbda must be a tuple of floats") from e
+            else:
+                raise ValueError("lmbda must be a float or tuple of floats") from t_e
+
+    def __call__(self, sample):
+        """Add Poisson noise to the input sample."""
+        lmbda = self.get_lmbda()
+        return torch.poisson(lmbda * (sample + 0.5)) / lmbda - 0.5
+
+    def get_lmbda(self):
+        """Sample a random lmbda or return it if it is a number."""
+        if self.lmbda_is_range:
+            return random.uniform(self.lmbda[0], self.lmbda[1])
+        return self.lmbda
+
+    def __repr__(self):
+        """Print an adequate representation of the class."""
+        return self.__class__.__name__ + "(lmbda={})".format(self.lmbda)
+
+
 class ComposeCopies(Compose):
     """Compose several transforms together, by copying them.
 
