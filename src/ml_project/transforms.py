@@ -141,7 +141,6 @@ class BrownGaussianNoise(WhiteGaussianNoise):
 
     def filter_noise(self, noise):
         """Filter the noise in input."""
-
         noise = noise.unsqueeze(0)
         row_filtered_noise = F.conv1d(
             F.pad(noise, self.pad_amount, mode="reflect"), self.kernel, groups=3
