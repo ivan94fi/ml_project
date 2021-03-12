@@ -13,6 +13,7 @@ from torchvision.transforms import Lambda, RandomCrop, ToTensor
 from ml_project.config_parser import parse_config, tabulate_config
 from ml_project.datasets import (
     ENV_VAR_DATASET_ROOT,
+    ENV_VAR_TEST_DATASET_ROOT,
     ENV_VAR_VALIDATION_DATASET_ROOT,
     ImageFolderDataset,
     read_directory_from_env,
@@ -53,159 +54,160 @@ if config.fixed_seeds:
     _set_external_seeds()
 
 
-common_transforms = ComposeCopies(
-    [
-        ResizeIfTooSmall(size=config.input_size, stretch=config.stretch),
-        RandomCrop(size=config.input_size),
-        ToTensor(),
-        Lambda(lambda sample: sample - 0.5),  # move the tensors in [-0.5, 0.5]
-    ]
-)
-
-if config.val_param is None:
-    if config.noise_type == "gaussian":
-        default_val_param = 25
-    elif config.noise_type == "poisson":
-        default_val_param = 30
-    print("Val param not passed. Overriding with default " + default_val_param)
-    config.val_param = default_val_param
-
-noise_transform = {}
-if config.noise_type == "gaussian":
-    config.train_params = tuple(val / 255.0 for val in config.train_params)
-    config.val_param /= 255.0
-    if config.brown_gaussian_std is not None:
-        noise_transform["train"] = lambda: BrownGaussianNoise(
-            kernel_std=config.brown_gaussian_std, std=config.train_params
+if config.command == "train":  # noqa: C901
+    if config.val_param is None:
+        if config.noise_type == "gaussian":
+            default_val_param = 25
+        elif config.noise_type == "poisson":
+            default_val_param = 30
+        print(
+            "Val param not passed. Overriding with default {}".format(default_val_param)
         )
-        noise_transform["val"] = lambda: BrownGaussianNoise(
-            kernel_std=config.brown_gaussian_std, std=config.val_param
+        config.val_param = default_val_param
+
+    noise_transform = {}
+    if config.noise_type == "gaussian":
+        config.train_params = tuple(val / 255.0 for val in config.train_params)
+        config.val_param /= 255.0
+        if config.brown_gaussian_std is not None:
+            noise_transform["train"] = lambda: BrownGaussianNoise(
+                kernel_std=config.brown_gaussian_std, std=config.train_params
+            )
+            noise_transform["val"] = lambda: BrownGaussianNoise(
+                kernel_std=config.brown_gaussian_std, std=config.val_param
+            )
+        else:
+            noise_transform["train"] = lambda: WhiteGaussianNoise(
+                std=config.train_params
+            )
+            noise_transform["val"] = lambda: WhiteGaussianNoise(std=config.val_param)
+    elif config.noise_type == "poisson":
+        noise_transform["train"] = lambda: PoissonNoise(lmbda=config.train_params)
+        noise_transform["val"] = lambda: PoissonNoise(lmbda=config.val_param)
+    else:
+        raise NotImplementedError
+
+    batch_sizes = {"train": config.batch_size, "val": 1}
+
+    if config.dataset_root is None:
+        config.dataset_root = read_directory_from_env(ENV_VAR_DATASET_ROOT)
+        print("Dataset root picked from environment variable")
+    print("Dataset root:", config.dataset_root)
+
+    sample_transforms = ComposeCopies([noise_transform["train"]()])
+    target_transforms = ComposeCopies(
+        sample_transforms if config.train_mode == "n2n" else []
+    )
+    common_transforms = ComposeCopies(
+        [
+            ResizeIfTooSmall(size=config.input_size, stretch=config.stretch),
+            RandomCrop(size=config.input_size),
+            ToTensor(),
+            Lambda(lambda sample: sample - 0.5),  # move the tensors in [-0.5, 0.5]
+        ]
+    )
+
+    transforms = {
+        "common": common_transforms,
+        "sample": sample_transforms,
+        "target": target_transforms,
+    }
+
+    full_dataset = ImageFolderDataset(config.dataset_root, transforms=transforms)
+    dataset = full_dataset.get_subset(end=config.num_examples)
+
+    if config.use_external_validation:
+        if config.val_dataset_root is None:
+            config.val_dataset_root = read_directory_from_env(
+                ENV_VAR_VALIDATION_DATASET_ROOT
+            )
+            print("Validation dataset root picked from environment variable")
+        print("Using external validation dataset:", config.val_dataset_root)
+
+        train_dataset = dataset
+        val_transforms = {
+            "common": ComposeCopies([ToTensor(), Lambda(lambda sample: sample - 0.5)]),
+            "sample": noise_transform["val"](),
+            "target": None,
+        }
+        validation_dataset = ImageFolderDataset(
+            config.val_dataset_root, transforms=val_transforms
         )
     else:
-        noise_transform["train"] = lambda: WhiteGaussianNoise(std=config.train_params)
-        noise_transform["val"] = lambda: WhiteGaussianNoise(std=config.val_param)
-elif config.noise_type == "poisson":
-    noise_transform["train"] = lambda: PoissonNoise(lmbda=config.train_params)
-    noise_transform["val"] = lambda: PoissonNoise(lmbda=config.val_param)
-else:
-    raise NotImplementedError
+        val_transforms = {
+            "common": ComposeCopies([common_transforms]),
+            "sample": noise_transform["val"](),
+            "target": None,
+        }
 
-batch_sizes = {"train": config.batch_size, "val": config.batch_size}
-
-if config.dataset_root is None:
-    config.dataset_root = read_directory_from_env(ENV_VAR_DATASET_ROOT)
-    print("Dataset root picked from environment variable")
-print("Dataset root:", config.dataset_root)
-
-sample_transforms = ComposeCopies([noise_transform["train"]()])
-target_transforms = ComposeCopies(
-    sample_transforms if config.train_mode == "n2n" else []
-)
-
-transforms = {
-    "common": common_transforms,
-    "sample": sample_transforms,
-    "target": target_transforms,
-}
-
-full_dataset = ImageFolderDataset(config.dataset_root, transforms=transforms)
-dataset = full_dataset.get_subset(end=config.num_examples)
-
-if config.use_external_validation:
-    if config.val_dataset_root is None:
-        config.val_dataset_root = read_directory_from_env(
-            ENV_VAR_VALIDATION_DATASET_ROOT
+        train_dataset, validation_dataset = dataset.split_train_validation(
+            train_percentage=config.train_percentage, val_transforms=val_transforms
         )
-        print("Validation dataset root picked from environment variable")
-    print("Using external validation dataset:", config.val_dataset_root)
 
-    train_dataset = dataset
-    val_transforms = {
-        "common": ComposeCopies([ToTensor(), Lambda(lambda sample: sample - 0.5)]),
-        "sample": noise_transform["val"](),
-        "target": None,
+    config.dataset_sizes = {"train": len(train_dataset), "val": len(validation_dataset)}
+    config.batch_numbers = {
+        phase: math.ceil(size / batch_sizes[phase])
+        for phase, size in config.dataset_sizes.items()
     }
-    validation_dataset = ImageFolderDataset(
-        config.val_dataset_root, transforms=val_transforms
+    print("train dataset size:", config.dataset_sizes["train"])
+    print("validation dataset size:", config.dataset_sizes["val"])
+
+    dataloader = DataLoader(
+        train_dataset,
+        batch_size=batch_sizes["train"],
+        shuffle=config.shuffle,
+        num_workers=config.workers,
+        pin_memory=config.pin_memory,
+        worker_init_fn=_set_external_seeds if config.fixed_seeds else None,
     )
-else:
-    val_transforms = {
-        "common": ComposeCopies([common_transforms]),
-        "sample": noise_transform["val"](),
-        "target": None,
-    }
 
-    train_dataset, validation_dataset = dataset.split_train_validation(
-        train_percentage=config.train_percentage, val_transforms=val_transforms
+    validation_dataloader = DataLoader(
+        validation_dataset,
+        batch_size=batch_sizes["val"],
+        shuffle=False,
+        num_workers=config.workers,
+        pin_memory=config.pin_memory,
+        worker_init_fn=_set_external_seeds if config.fixed_seeds else None,
     )
-batch_sizes["val"] = 1
 
-config.dataset_sizes = {"train": len(train_dataset), "val": len(validation_dataset)}
-config.batch_numbers = {
-    phase: math.ceil(size / batch_sizes[phase])
-    for phase, size in config.dataset_sizes.items()
-}
-print("train dataset size:", config.dataset_sizes["train"])
-print("validation dataset size:", config.dataset_sizes["val"])
+    net = UNet().to(config.device)
 
-dataloader = DataLoader(
-    train_dataset,
-    batch_size=batch_sizes["train"],
-    shuffle=config.shuffle,
-    num_workers=config.workers,
-    pin_memory=config.pin_memory,
-    worker_init_fn=_set_external_seeds if config.fixed_seeds else None,
-)
+    criterion = torch.nn.MSELoss()
 
-validation_dataloader = DataLoader(
-    validation_dataset,
-    batch_size=batch_sizes["val"],
-    shuffle=False,
-    num_workers=config.workers,
-    pin_memory=config.pin_memory,
-    worker_init_fn=_set_external_seeds if config.fixed_seeds else None,
-)
+    optimizer = torch.optim.Adam(
+        net.parameters(), lr=config.learning_rate, betas=(0.9, 0.99)
+    )
 
-net = UNet().to(config.device)
+    # total_epochs must always be the entire number of epochs: restart handled by
+    # restoring scheduler
+    lr_scheduling_function = partial(
+        get_lr_dampening_factor, total_epochs=config.epochs, percentage_to_dampen=60,
+    )
 
-criterion = torch.nn.MSELoss()
+    lr_scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_scheduling_function)
 
-optimizer = torch.optim.Adam(
-    net.parameters(), lr=config.learning_rate, betas=(0.9, 0.99)
-)
-
-# total_epochs must always be the entire number of epochs: restart handled by
-# restoring scheduler
-lr_scheduling_function = partial(
-    get_lr_dampening_factor, total_epochs=config.epochs, percentage_to_dampen=60,
-)
-
-lr_scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_scheduling_function)
-
-if config.start_from_checkpoint is not None:
-    print("Restore checkpoint " + config.start_from_checkpoint)
-    checkpoint = torch.load(config.start_from_checkpoint)
-    net.load_state_dict(checkpoint["net"])
-    optimizer.load_state_dict(checkpoint["opt"])
-    lr_scheduler.load_state_dict(checkpoint["sched"])
-    print("Overriding starting epoch value with the one found in the checkpoint")
-    if config.starting_epoch != 1:
-        # a starting epoch is passed from cli: check that it matches the one in
-        # checkpoint
-        if config.starting_epoch != checkpoint["epoch"]:
-            raise ValueError(
-                "Mismatch between epochs in checkpoint "
-                "and command line argument: got {} and {}.".format(
-                    checkpoint["epoch"], config.starting_epoch
+    if config.start_from_checkpoint is not None:
+        print("Restore checkpoint " + config.start_from_checkpoint)
+        checkpoint = torch.load(config.start_from_checkpoint)
+        net.load_state_dict(checkpoint["net"])
+        optimizer.load_state_dict(checkpoint["opt"])
+        lr_scheduler.load_state_dict(checkpoint["sched"])
+        print("Overriding starting epoch value with the one found in the checkpoint")
+        if config.starting_epoch != 1:
+            # a starting epoch is passed from cli: check that it matches the one in
+            # checkpoint
+            if config.starting_epoch != checkpoint["epoch"]:
+                raise ValueError(
+                    "Mismatch between epochs in checkpoint "
+                    "and command line argument: got {} and {}.".format(
+                        checkpoint["epoch"], config.starting_epoch
+                    )
                 )
-            )
-    config.starting_epoch = checkpoint["epoch"] + 1
+        config.starting_epoch = checkpoint["epoch"] + 1
 
-dataloaders = {"train": dataloader, "val": validation_dataloader}
+    dataloaders = {"train": dataloader, "val": validation_dataloader}
 
-print("Epochs to run: {} to {}".format(config.starting_epoch, config.epochs))
-
-if config.command == "train":
+    print("Epochs to run: {} to {}".format(config.starting_epoch, config.epochs))
     print()
     print("Starting train loop")
     print()
@@ -214,7 +216,76 @@ if config.command == "train":
     train_loop_end = time.time()
     print()
     print("Train loop time: {:.5f}".format(train_loop_end - train_loop_start))
-elif config.command == "test":
-    test(config)
+    print("Complete script time: {:.5f}".format(train_loop_end - complete_start))
 
-print("Complete script time: {:.5f}".format(train_loop_end - complete_start))
+###############################################################################
+
+elif config.command == "test":
+    print("Restore checkpoint " + config.test_checkpoint)
+    checkpoint = torch.load(config.test_checkpoint)
+    print("Epoch from checkpoint: {}".format(checkpoint["epoch"]))
+
+    if config.test_param is None:
+        if config.noise_type == "gaussian":
+            default_test_param = 25
+        elif config.noise_type == "poisson":
+            default_test_param = 30
+        print(
+            "test param not passed. Overriding with default {}".format(
+                default_test_param
+            )
+        )
+        config.test_param = default_test_param
+
+    noise_transform = {}
+    if config.noise_type == "gaussian":
+        config.test_param /= 255.0
+        if config.brown_gaussian_std is not None:
+            noise_transform["test"] = lambda: BrownGaussianNoise(
+                kernel_std=config.brown_gaussian_std, std=config.test_param
+            )
+        else:
+            noise_transform["test"] = lambda: WhiteGaussianNoise(std=config.test_param)
+    elif config.noise_type == "poisson":
+        noise_transform["test"] = lambda: PoissonNoise(lmbda=config.test_param)
+    else:
+        raise NotImplementedError
+
+    if config.test_dataset_root is None:
+        config.test_dataset_root = read_directory_from_env(ENV_VAR_TEST_DATASET_ROOT)
+        print("Test dataset root picked from environment variable")
+    print("Using test dataset:", config.test_dataset_root)
+
+    test_transforms = {
+        "common": ComposeCopies([ToTensor(), Lambda(lambda sample: sample - 0.5)]),
+        "sample": noise_transform["test"](),
+        "target": None,
+    }
+    test_dataset = ImageFolderDataset(
+        config.test_dataset_root, transforms=test_transforms
+    )
+
+    config.dataset_sizes = {"test": len(test_dataset)}
+    config.batch_numbers = config.dataset_sizes
+    print("test dataset size:", config.dataset_sizes["test"])
+
+    test_dataloader = DataLoader(
+        test_dataset,
+        batch_size=1,
+        shuffle=False,
+        num_workers=config.workers,
+        pin_memory=config.pin_memory,
+        worker_init_fn=_set_external_seeds if config.fixed_seeds else None,
+    )
+
+    net = UNet().to(config.device)
+    net.load_state_dict(checkpoint["net"])
+
+    criterion = torch.nn.MSELoss()
+
+    test_loop_start = time.time()
+    test(test_dataloader, net, criterion, config)
+    test_loop_end = time.time()
+    print()
+    print("Test time: {:.5f}".format(test_loop_end - test_loop_start))
+    print("Complete script time: {:.5f}".format(test_loop_end - complete_start))

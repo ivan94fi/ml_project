@@ -1,7 +1,9 @@
 # pylint: disable=R0912,R0913,R0914,R0915
 """Functions that define train/test procedures."""
 import os
+import socket
 import time
+from datetime import datetime
 
 import torch
 from torch.utils.tensorboard import SummaryWriter
@@ -179,5 +181,92 @@ def train(  # noqa: C901
     nvml_shutdown()
 
 
-def test(configuration):
-    print("test")
+def test(dataloader, network, criterion, config):
+    """Execute the testing procedure with the passed data and configuration.
+
+    Parameters
+    ----------
+    dataloader : torch.utils.data.DataLoader
+        The dataloader which provides examples and targets for testing
+    network : torch.nn.Module
+        The network to train
+    criterion : torch.nn.Module
+        Loss function used for training
+    config : argparse.Namespace-like
+        All the parsed configuration. The exact class does not matter, but the
+        options should be available as attributes
+
+    """
+    if config.dry_run:
+        print("Dry run. Not executing testing")
+        return
+
+    batch_size = 1
+    phase = "test"
+    epoch = 0  # TODO: prendi epoca da checkpoint?
+
+    current_time = datetime.now().strftime("%b%d_%H-%M-%S")
+    test_log_dir = os.path.join("test_runs", current_time + "_" + socket.gethostname())
+    writer = SummaryWriter(log_dir=test_log_dir)  # TODO: use a tmp dir?
+    progress_printer = ProgressPrinter(
+        config, progress_template="Loss: {:.3f} - PSNR: {:.3f}"
+    )
+    progress_printer.reset(phase)
+
+    iterations = CounterSubject()
+    image_logger = ConditionalLogger({"step": iterations}, config.log_images)
+
+    network.eval()
+
+    running_loss = MetricTracker()
+    running_psnr = MetricTracker()
+
+    for batch_index, data in enumerate(iterations.iter(dataloader)):
+        original_width = data.sample.shape[2]
+        original_height = data.sample.shape[3]
+        data = pad(data)
+
+        sample = data.sample.to(config.device)
+        target = data.target.to(config.device)
+
+        progress_printer.update_batch_info(batch_size, batch_index)
+
+        with torch.set_grad_enabled(False):
+            output = network(sample)
+
+            output = output[:, :, :original_width, :original_height]
+            target = target[:, :, :original_width, :original_height]
+
+            loss = criterion(output, target)
+
+        running_loss.update(loss.item(), batch_size)
+        running_psnr.update(psnr_from_mse(running_loss.last_value), batch_size)
+
+        # Iteration logging
+        global_step = batch_index
+        if image_logger.should_log():
+            tensors = [data.sample, data.target, output]
+            fig = create_figure(tensors, title="epoch:" + str(epoch))
+            writer.add_figure("input-target-output/" + phase, fig, global_step)
+
+        progress_printer.show_epoch_progress(
+            running_loss.last_value, running_psnr.last_value
+        )
+        progress_printer.update_bar(batch_size)
+
+    progress_printer.close_bar()
+
+    # Epoch logging
+    epoch_loss = running_loss.average
+    epoch_psnr = running_psnr.average
+    print(
+        "{} concluded. Loss: {:.3f} PSNR: {:.3f}".format(
+            phase.capitalize(), epoch_loss, epoch_psnr
+        )
+    )
+    writer.add_scalar("Metrics/Loss/" + phase, epoch_loss)
+    writer.add_scalar("Metrics/PSNR/" + phase, epoch_psnr)
+
+    print()
+
+    writer.close()

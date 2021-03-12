@@ -146,30 +146,6 @@ def parse_config(args=None):
         help="Use pinned memory for tensors allocation during dataset loading. "
         "Supported values are y[es]/n[o], t[rue]/f[alse], case insensitive.",
     )
-
-    main_parser.add_argument(
-        "--use-external-validation",
-        default=True,
-        type=strtobool,
-        help="Whether to use a different dataset from the training one for validation.",
-    )
-    main_parser.add_argument(
-        "--dataset-root",
-        type=str,
-        help="The root directory of the dataset to use. This directory must "
-        "directly contain the images with no subdirectories. As an alternative, "
-        "the environment variable NOISE2NOISE_DATASET_ROOT can be used to specify "
-        "the dataset root. If given, the command line option has precedence.",
-    )
-    main_parser.add_argument(
-        "--val-dataset-root",
-        type=str,
-        help="The root directory of the validation dataset to use. This directory must "
-        "directly contain the images with no subdirectories. As an alternative, "
-        "the environment variable NOISE2NOISE_VALIDATION_DATASET_ROOT can be used "
-        "to specify the dataset root. If given, the command line option has "
-        "precedence.",
-    )
     main_parser.add_argument(
         "--fixed-seeds",
         default=True,
@@ -184,6 +160,44 @@ def parse_config(args=None):
         default=True,
         type=strtobool,
         help="Print a progress bar during training.",
+    )
+    main_parser.add_argument(
+        "--print-interval",
+        default=20,
+        type=int,
+        metavar="INT",
+        help="Print metrics during training every INT batches",
+    )
+    main_parser.add_argument(
+        "--log-images",
+        default=None,
+        type=lambda v: int(v) if v else None,
+        metavar="INT",
+        help="If supplied, log the current sample, target and output images to "
+        "tensorboard every INT batches during training. Pass an empty string "
+        "(--log-images='') to disable",
+    )
+    main_parser.add_argument(
+        "-d",
+        "--dry-run",
+        action="store_true",
+        help="Parse configuration, define dataloaders, and exit without training",
+    )
+
+    noise_group = main_parser.add_argument_group("Noise settings")
+    noise_group.add_argument(
+        "--noise-type",
+        default="gaussian",
+        choices=["gaussian", "poisson"],
+        type=str,
+        help="The type of noise to add to the examples/targets",
+    )
+    noise_group.add_argument(
+        "--brown-gaussian-std",
+        default=None,
+        type=float,
+        metavar="STD",
+        help="Use a brown gaussian noise, with the specified standard deviation",
     )
 
     subparsers = main_parser.add_subparsers(
@@ -222,10 +236,27 @@ def parse_config(args=None):
         help="Initial learning rate for the optimizer",
     )
     train_parser.add_argument(
-        "-d",
-        "--dry-run",
-        action="store_true",
-        help="Parse configuration, define dataloaders, and exit without training",
+        "--use-external-validation",
+        default=True,
+        type=strtobool,
+        help="Whether to use a different dataset from the training one for validation.",
+    )
+    train_parser.add_argument(
+        "--dataset-root",
+        type=str,
+        help="The root directory of the dataset to use. This directory must "
+        "directly contain the images with no subdirectories. As an alternative, "
+        "the environment variable NOISE2NOISE_DATASET_ROOT can be used to specify "
+        "the dataset root. If given, the command line option has precedence.",
+    )
+    train_parser.add_argument(
+        "--val-dataset-root",
+        type=str,
+        help="The root directory of the validation dataset to use. This directory must "
+        "directly contain the images with no subdirectories. As an alternative, "
+        "the environment variable NOISE2NOISE_VALIDATION_DATASET_ROOT can be used "
+        "to specify the dataset root. If given, the command line option has "
+        "precedence.",
     )
     train_parser.add_argument(
         "--train-percentage",
@@ -243,22 +274,6 @@ def parse_config(args=None):
         "'n2c' to use corrupted samples and clean targets",
     )
     train_parser.add_argument(
-        "--print-interval",
-        default=20,
-        type=int,
-        metavar="INT",
-        help="Print metrics during training every INT batches",
-    )
-    train_parser.add_argument(
-        "--log-images",
-        default=None,
-        type=lambda v: int(v) if v else None,
-        metavar="INT",
-        help="If supplied, log the current sample, target and output images to "
-        "tensorboard every INT batches during training. Pass an empty string "
-        "(--log-images='') to disable",
-    )
-    train_parser.add_argument(
         "--log-other-metrics",
         default=300,
         type=lambda v: int(v) if v else None,
@@ -268,6 +283,15 @@ def parse_config(args=None):
     )
 
     checkpoint_group = train_parser.add_argument_group("Checkpoints settings")
+    checkpoint_group.add_argument(
+        "--checkpoints-root",
+        default=os.path.dirname(__file__),
+        type=os.path.realpath,
+        metavar="PATH",
+        help="Root directory for checkpoints directory. The final save location "
+        "will be PATH/checkpoints. Individual files will be saved with the "
+        "following filename pattern: 'n2n_<TIMESTAMP>_<EPOCH>.pt'",
+    )
     checkpoint_group.add_argument(
         "--start-from-checkpoint",
         default=None,
@@ -285,15 +309,6 @@ def parse_config(args=None):
         "epochs. Pass an empty string (--checkpoint-interval='') to disable",
     )
     checkpoint_group.add_argument(
-        "--checkpoints-root",
-        default=os.path.dirname(__file__),
-        type=os.path.realpath,
-        metavar="PATH",
-        help="Root directory for checkpoints directory. The final save location "
-        "will be PATH/checkpoints. Individual files will be saved with the "
-        "following filename pattern: 'n2n_<TIMESTAMP>_<EPOCH>.pt'",
-    )
-    checkpoint_group.add_argument(
         "--starting-epoch",
         default=1,
         type=_check_gt_zero,
@@ -302,22 +317,6 @@ def parse_config(args=None):
     )
 
     noise_group = train_parser.add_argument_group("Noise settings")
-    noise_group.add_argument(
-        "--noise-type",
-        default="gaussian",
-        choices=["gaussian", "poisson"],
-        type=str,
-        help="The type of noise to add to the examples/targets",
-    )
-
-    noise_group.add_argument(
-        "--brown-gaussian-std",
-        default=None,
-        type=float,
-        metavar="STD",
-        help="Use a brown gaussian noise, with the specified standard deviation",
-    )
-
     noise_group.add_argument(
         "--train-params",
         default=(0.0, 50.0),
@@ -342,7 +341,30 @@ def parse_config(args=None):
         help="Execute test procedure",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
-    test_parser.add_argument("--test-opt", action="store", help="example")
+    checkpoint_group = test_parser.add_argument_group("Checkpoints settings")
+    checkpoint_group.add_argument(
+        "test_checkpoint",
+        type=os.path.realpath,
+        metavar="CHECKPOINT_PATH",
+        help="Load a checkpoint file to test.",
+    )
+
+    test_parser.add_argument(
+        "--test-dataset-root",
+        type=str,
+        help="The root directory of the test dataset to use. This directory must "
+        "directly contain the images with no subdirectories. As an alternative, "
+        "the environment variable NOISE2NOISE_TEST_DATASET_ROOT can be used to "
+        "specify the dataset root. If given, the command line option has precedence.",
+    )
+
+    noise_group = test_parser.add_argument_group("Noise settings")
+    noise_group.add_argument(
+        "--test-param",
+        type=float,
+        help="The noise parameter for validation. For gaussian noise, specify a "
+        "value in [0, 255].",
+    )
 
     parsed_args = main_parser.parse_args(args)
 
