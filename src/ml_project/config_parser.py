@@ -67,14 +67,14 @@ def tabulate_config(config, **tabulate_kwargs):
 
 
 # pylint: disable=too-few-public-methods
-class ParseStdRange(argparse.Action):
-    """Check condition on std range passed from command line."""
+class ParseNoiseParamRange(argparse.Action):
+    """Parse the range of noise parameters."""
 
     def __call__(self, parser, namespace, values, option_string=None):
         """Perfrom the check."""
         if values[0] > values[1]:
             parser.error("lower bound should be lesser than or equal to upper bound")
-        namespace.std_range = tuple(values)
+        namespace.train_params = tuple(values)
 
 
 def parse_config(args=None):
@@ -311,7 +311,7 @@ def parse_config(args=None):
     )
 
     noise_group.add_argument(
-        "--brown_gaussian_std",
+        "--brown-gaussian-std",
         default=None,
         type=float,
         metavar="STD",
@@ -319,22 +319,22 @@ def parse_config(args=None):
     )
 
     noise_group.add_argument(
-        "--std-range",
+        "--train-params",
         default=(0.0, 50.0),
         nargs=2,
         type=float,
         metavar=("LOWER", "UPPER"),
-        action=ParseStdRange,
-        help="The standard deviation range of noise to be added. This value must be "
-        "specified as if it was applied to integer pixel values in [0, 255]. It is "
-        "internally converted to be applied on floating point pixel values in [0, 1].",
+        action=ParseNoiseParamRange,
+        help="The range of the noise parameter values for training. For gaussian "
+        "noise it is the standard deviation, for Poisson it is the rate. NOTE: "
+        "the scale for gaussian noise std is [0, 255], then internally converted to "
+        "[0, 1].",
     )
     noise_group.add_argument(
-        "--val-std",
-        default=25.0,
+        "--val-param",
         type=float,
-        help="The standard deviation for noise applied to validation set. Specify a "
-        "value in [0, 255]",
+        help="The noise parameter for validation. For gaussian noise, specify a "
+        "value in [0, 255].",
     )
 
     test_parser = subparsers.add_parser(
