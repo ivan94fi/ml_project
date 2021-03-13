@@ -10,14 +10,8 @@ import torch
 from torch.utils.data import DataLoader
 from torchvision.transforms import Lambda, RandomCrop, ToTensor
 
-from ml_project.config_parser import parse_config, tabulate_config
-from ml_project.datasets import (
-    ENV_VAR_DATASET_ROOT,
-    ENV_VAR_TEST_DATASET_ROOT,
-    ENV_VAR_VALIDATION_DATASET_ROOT,
-    ImageFolderDataset,
-    read_directory_from_env,
-)
+from ml_project.config_parser import define_parser, parse_config, tabulate_config
+from ml_project.datasets import ImageFolderDataset
 from ml_project.models import UNet
 from ml_project.procedures import test, train
 from ml_project.transforms import (
@@ -31,7 +25,8 @@ from ml_project.utils import get_lr_dampening_factor
 
 complete_start = time.time()
 
-config = parse_config()
+parser = define_parser()
+config = parse_config(parser)
 
 print("Selected configuration")
 print("=" * 60)
@@ -55,44 +50,27 @@ if config.fixed_seeds:
 
 
 if config.command == "train":  # noqa: C901
-    if config.val_param is None:
-        if config.noise_type == "gaussian":
-            default_val_param = 25
-        elif config.noise_type == "poisson":
-            default_val_param = 30
-        print(
-            "Val param not passed. Overriding with default {}".format(default_val_param)
-        )
-        config.val_param = default_val_param
-
     noise_transform = {}
     if config.noise_type == "gaussian":
-        config.train_params = tuple(val / 255.0 for val in config.train_params)
-        config.val_param /= 255.0
+        train_params = tuple(val / 255.0 for val in config.train_params)
+        val_param = config.val_param / 255.0
         if config.brown_gaussian_std is not None:
             noise_transform["train"] = lambda: BrownGaussianNoise(
-                kernel_std=config.brown_gaussian_std, std=config.train_params
+                kernel_std=config.brown_gaussian_std, std=train_params
             )
             noise_transform["val"] = lambda: BrownGaussianNoise(
-                kernel_std=config.brown_gaussian_std, std=config.val_param
+                kernel_std=config.brown_gaussian_std, std=val_param
             )
         else:
-            noise_transform["train"] = lambda: WhiteGaussianNoise(
-                std=config.train_params
-            )
-            noise_transform["val"] = lambda: WhiteGaussianNoise(std=config.val_param)
+            noise_transform["train"] = lambda: WhiteGaussianNoise(std=train_params)
+            noise_transform["val"] = lambda: WhiteGaussianNoise(std=val_param)
     elif config.noise_type == "poisson":
-        noise_transform["train"] = lambda: PoissonNoise(lmbda=config.train_params)
-        noise_transform["val"] = lambda: PoissonNoise(lmbda=config.val_param)
+        noise_transform["train"] = lambda: PoissonNoise(lmbda=train_params)
+        noise_transform["val"] = lambda: PoissonNoise(lmbda=val_param)
     else:
         raise NotImplementedError
 
     batch_sizes = {"train": config.batch_size, "val": 1}
-
-    if config.dataset_root is None:
-        config.dataset_root = read_directory_from_env(ENV_VAR_DATASET_ROOT)
-        print("Dataset root picked from environment variable")
-    print("Dataset root:", config.dataset_root)
 
     sample_transforms = ComposeCopies([noise_transform["train"]()])
     target_transforms = ComposeCopies(
@@ -113,15 +91,11 @@ if config.command == "train":  # noqa: C901
         "target": target_transforms,
     }
 
+    print("Dataset root:", config.dataset_root)
     full_dataset = ImageFolderDataset(config.dataset_root, transforms=transforms)
     dataset = full_dataset.get_subset(end=config.num_examples)
 
     if config.use_external_validation:
-        if config.val_dataset_root is None:
-            config.val_dataset_root = read_directory_from_env(
-                ENV_VAR_VALIDATION_DATASET_ROOT
-            )
-            print("Validation dataset root picked from environment variable")
         print("Using external validation dataset:", config.val_dataset_root)
 
         train_dataset = dataset
@@ -230,35 +204,20 @@ elif config.command == "test":
     checkpoint = torch.load(config.test_checkpoint)
     print("Epoch from checkpoint: {}".format(checkpoint["epoch"]))
 
-    if config.test_param is None:
-        if config.noise_type == "gaussian":
-            default_test_param = 25
-        elif config.noise_type == "poisson":
-            default_test_param = 30
-        print(
-            "test param not passed. Overriding with default {}".format(
-                default_test_param
-            )
-        )
-        config.test_param = default_test_param
-
     noise_transform = {}
     if config.noise_type == "gaussian":
-        config.test_param /= 255.0
+        test_param = config.test_param / 255.0
         if config.brown_gaussian_std is not None:
             noise_transform["test"] = lambda: BrownGaussianNoise(
-                kernel_std=config.brown_gaussian_std, std=config.test_param
+                kernel_std=config.brown_gaussian_std, std=test_param
             )
         else:
-            noise_transform["test"] = lambda: WhiteGaussianNoise(std=config.test_param)
+            noise_transform["test"] = lambda: WhiteGaussianNoise(std=test_param)
     elif config.noise_type == "poisson":
-        noise_transform["test"] = lambda: PoissonNoise(lmbda=config.test_param)
+        noise_transform["test"] = lambda: PoissonNoise(lmbda=test_param)
     else:
         raise NotImplementedError
 
-    if config.test_dataset_root is None:
-        config.test_dataset_root = read_directory_from_env(ENV_VAR_TEST_DATASET_ROOT)
-        print("Test dataset root picked from environment variable")
     print("Using test dataset:", config.test_dataset_root)
 
     test_transforms = {

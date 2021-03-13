@@ -6,6 +6,13 @@ import re
 
 from tabulate import tabulate
 
+from ml_project.datasets import (
+    ENV_VAR_DATASET_ROOT,
+    ENV_VAR_TEST_DATASET_ROOT,
+    ENV_VAR_VALIDATION_DATASET_ROOT,
+    read_directory_from_env,
+)
+
 
 def strtobool(val):
     """
@@ -77,20 +84,8 @@ class ParseNoiseParamRange(argparse.Action):
         namespace.train_params = tuple(values)
 
 
-def parse_config(args=None):
-    """Parse the configuration for the execution.
-
-    Parameters
-    ----------
-    args : list of strings
-        Source of configuration. If None, `sys.argv` arguments are analyzed
-
-    Returns
-    -------
-    argparse.Namespace
-        The parsed arguments in a Namespace object
-
-    """
+def define_parser():
+    """Define the command line options as a parser object."""
     main_parser = argparse.ArgumentParser(
         description="Machine Learning Project: "
         "reimplementation of Noise2Noise framework.",
@@ -381,11 +376,80 @@ def parse_config(args=None):
         "value in [0, 255].",
     )
 
+    return main_parser
+
+
+default_noise_values = {"gaussian": 25, "poisson": 30}
+
+
+def _default_noise_param(noise_type, phase):
+    try:
+        param_value = default_noise_values[noise_type]
+    except KeyError as e:
+        raise ValueError("Noise type unknown") from e
+    fmt_str = "{} param not passed. Overriding with default {}"
+    print(fmt_str.format(phase.capitalize(), param_value))
+
+    return param_value
+
+
+def validate_config(config):
+    """Perform additional checks on the configuration."""
+    if config.command == "train":
+        if config.val_param is None:
+            config.val_param = _default_noise_param(config.noise_type, "val")
+
+        if config.dataset_root is None:
+            config.dataset_root = read_directory_from_env(ENV_VAR_DATASET_ROOT)
+            print("Dataset root picked from environment variable")
+
+        if config.use_external_validation:
+            if config.val_dataset_root is None:
+                config.val_dataset_root = read_directory_from_env(
+                    ENV_VAR_VALIDATION_DATASET_ROOT
+                )
+            print("Validation dataset root picked from environment variable")
+
+    elif config.command == "test":
+        if config.test_param is None:
+            config.test_param = _default_noise_param(config.noise_type, "test")
+
+        if config.test_dataset_root is None:
+            config.test_dataset_root = read_directory_from_env(
+                ENV_VAR_TEST_DATASET_ROOT
+            )
+            print("Test dataset root picked from environment variable")
+
+    return config
+
+
+def parse_config(main_parser, args=None):
+    """Parse the configuration for the execution.
+
+    Parameters
+    ----------
+    main_parser: arparse.ArgumentParser
+        The configured parser instance used for parsing the arguments
+    args : list of strings
+        Source of configuration. If None, `sys.argv` arguments are analyzed
+
+    Returns
+    -------
+    argparse.Namespace
+        The parsed arguments in a Namespace object
+
+    """
     parsed_args = main_parser.parse_args(args)
+
+    parsed_args = validate_config(parsed_args)
 
     return parsed_args
 
 
 if __name__ == "__main__":
-    configs = parse_config()
+    import json
+
+    configs = parse_config(define_parser())
     print(tabulate_config(configs))
+    print()
+    print(json.dumps(vars(configs), sort_keys=True, indent=4))
