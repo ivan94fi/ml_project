@@ -8,15 +8,13 @@ from datetime import datetime
 import torch
 from torch.utils.tensorboard import SummaryWriter
 
+from ml_project.gpu_utils import GpuStats
 from ml_project.loggers import ConditionalLogger, CounterSubject, IterableSubject
 from ml_project.utils import (
     MetricTracker,
     ProgressPrinter,
     checkpoint_fname_template,
     create_figure,
-    get_gpu_stats,
-    get_nvml_handle,
-    nvml_shutdown,
     pad,
     psnr_from_mse,
 )
@@ -52,7 +50,7 @@ def train(  # noqa: C901
     progress_printer = ProgressPrinter(
         config, progress_template="Loss: {:.3f} - PSNR: {:.3f}"
     )
-    handle = get_nvml_handle()
+    gpu_handle = GpuStats()
 
     if config.checkpoint_interval is not None:
         if not os.path.isdir(config.checkpoints_root):
@@ -134,8 +132,8 @@ def train(  # noqa: C901
                 if additional_logger.should_log():
                     writer.add_scalar("Utils/efficiency", efficiency, global_step)
                     writer.add_scalar("Utils/iter_time", iter_time, global_step)
-                    if handle is not None:
-                        used_mem, rate, temp = get_gpu_stats(handle)
+                    if not gpu_handle.no_gpu:
+                        used_mem, rate, temp = gpu_handle.get_gpu_stats()
                         writer.add_scalar("Utils/GPU/mem_used", used_mem, global_step)
                         writer.add_scalar("Utils/GPU/util", rate, global_step)
                         writer.add_scalar("Utils/GPU/temp", temp, global_step)
@@ -178,7 +176,7 @@ def train(  # noqa: C901
             torch.save(checkpoint, fname_template.format(epoch))
 
     writer.close()
-    nvml_shutdown()
+    gpu_handle.close()
 
 
 def test(dataloader, network, criterion, config):

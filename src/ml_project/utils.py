@@ -1,20 +1,10 @@
 """Utility functions and classes."""
 import math
-import os
 from datetime import datetime
 
 import matplotlib.pyplot as plt
 import torch
 import torch.nn.functional as F
-from py3nvml.py3nvml import (
-    NVML_TEMPERATURE_GPU,
-    nvmlDeviceGetHandleByIndex,
-    nvmlDeviceGetMemoryInfo,
-    nvmlDeviceGetTemperature,
-    nvmlDeviceGetUtilizationRates,
-    nvmlInit,
-    nvmlShutdown,
-)
 from torchvision.utils import make_grid
 from tqdm import tqdm
 
@@ -136,45 +126,6 @@ def checkpoint_fname_template():
     """Return a filename template: 'n2n_<current_timestamp>_e{}.pt'."""
     timestamp = datetime.now().strftime("%b%d_%H-%M")
     return "n2n_" + timestamp + "_e{}.pt"
-
-
-def get_nvml_handle(index=None):
-    """Return an handle to the current gpu to query some stats."""
-    if not torch.cuda.is_available():
-        return None
-    if index is None:
-        index = torch.cuda.current_device()
-        visible_devices = os.environ.get("CUDA_VISIBLE_DEVICES")
-        if visible_devices is not None:
-            visible_devices = [int(d) for d in visible_devices.split(",")]
-            # The following line assumes devices ids are specified in order and
-            # without gaps in CUDA_VISIBLE_DEVICES definition
-            index += max(visible_devices)
-
-    nvmlInit()
-    return nvmlDeviceGetHandleByIndex(index)
-
-
-def get_gpu_stats(handle):
-    """
-    Return some statistics for the gpu associated with handle.
-
-    The statistics returned are:
-    - used memory in MB
-    - gpu utilization percentage
-    - temperature in Celsius degrees
-    """
-    mem = nvmlDeviceGetMemoryInfo(handle)
-    rates = nvmlDeviceGetUtilizationRates(handle)
-    temp = nvmlDeviceGetTemperature(handle, NVML_TEMPERATURE_GPU)
-    # pylint: disable=no-member
-    return (mem.used / 1024 / 1024, rates.gpu, temp)
-
-
-def nvml_shutdown():
-    """Free resources occupied by nvml."""
-    if torch.cuda.is_available():
-        nvmlShutdown()
 
 
 def create_figure(images, title=None):
