@@ -236,6 +236,21 @@ def parse_config(args=None):
         help="Initial learning rate for the optimizer",
     )
     train_parser.add_argument(
+        "--lr-dampen-percentage",
+        default=60,
+        type=int,
+        metavar="PERCENTAGE",
+        help="Execute learning rate dampening in the last PERCENTAGE of epochs",
+    )
+    train_parser.add_argument(
+        "--lr-scheduling-method",
+        default="cosine",
+        choices=["cosine"],
+        type=str,
+        metavar="METHOD",
+        help="The learning rate scheduling method to use during training.",
+    )
+    train_parser.add_argument(
         "--use-external-validation",
         default=True,
         type=strtobool,

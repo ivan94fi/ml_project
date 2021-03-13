@@ -180,9 +180,14 @@ if config.command == "train":  # noqa: C901
 
     # total_epochs must always be the entire number of epochs: restart handled by
     # restoring scheduler
-    lr_scheduling_function = partial(
-        get_lr_dampening_factor, total_epochs=config.epochs, percentage_to_dampen=60,
-    )
+    if config.lr_scheduling_method == "cosine":
+        lr_scheduling_function = partial(
+            get_lr_dampening_factor,
+            total_epochs=config.epochs,
+            percentage_to_dampen=config.lr_dampen_percentage,
+        )
+    else:
+        raise ValueError("Scheduling method not supported")
 
     lr_scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_scheduling_function)
 
