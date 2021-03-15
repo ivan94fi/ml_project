@@ -1,8 +1,12 @@
 """Functions for options parsing."""
+# pylint: disable=C0103,R0903
 
 import argparse
+import json
 import os
 import re
+import socket
+from datetime import datetime
 
 from tabulate import tabulate
 
@@ -12,13 +16,96 @@ from ml_project.datasets import (
     ENV_VAR_VALIDATION_DATASET_ROOT,
     read_directory_from_env,
 )
+from ml_project.utils import normalize_path
+
+# This timestamp will be used as name for the current experiment.
+# Specifically, the object that will have this name will be:
+#     - the tensorboard record file (contained in runs directory)
+#     - the directory containing model checkpoints and config in results
+TIMESTAMP = datetime.now().strftime("%b%d_%H-%M-%S")
+
+
+class directory_structure:
+    """Settings for the root directoty.
+
+    Directory structure:
+    root (default: this file's directory)
+        results
+            <TIMESTAMP1>
+                checkpoints
+                run_config.json
+            <TIMESTAMP2>
+            ...
+        runs
+            <TIMESTAMP1>_host
+            <TIMESTAMP2>_host
+            ...
+
+    """
+
+    # The root of all produced artifacts: defaults to this file's directory.
+    # results directory and runs directory will be created here
+    ROOT_DIR = None
+
+    # Path where experiment related artifacts will be placed
+    RESULTS_PATH = None
+
+    # The current experiment path
+    CURRENT_EXP_PATH = None
+
+    # The checkpoints and config path for the current experiment
+    CHECKPOINTS_PATH = None
+    RUN_CONFIG_PATH = None
+
+    # Tensorboard runs: kept separate for better visualization
+    RUNS_PATH = None
+
+    # The name of the current tensorboard run
+    CURRENT_TB_RUN = None
+
+    @classmethod
+    def update(cls, _root_dir):
+        """Update the global variables with the passed root_dir."""
+        cls.ROOT_DIR = normalize_path(_root_dir)
+
+        cls.RESULTS_PATH = os.path.join(cls.ROOT_DIR, "results")
+
+        cls.CURRENT_EXP_PATH = os.path.join(cls.RESULTS_PATH, TIMESTAMP)
+
+        cls.CHECKPOINTS_PATH = os.path.join(cls.CURRENT_EXP_PATH, "checkpoints")
+        cls.RUN_CONFIG_PATH = os.path.join(cls.CURRENT_EXP_PATH, "run_config.json")
+
+        cls.RUNS_PATH = os.path.join(cls.ROOT_DIR, "runs")
+
+        cls.CURRENT_TB_RUN = os.path.join(
+            cls.RUNS_PATH, TIMESTAMP + "_" + socket.gethostname()
+        )
+
+    @classmethod
+    def create(cls):
+        """Create the directory tree."""
+        if not os.path.isdir(cls.ROOT_DIR):
+            os.mkdir(cls.ROOT_DIR)
+        if not os.path.isdir(cls.RESULTS_PATH):
+            os.mkdir(cls.RESULTS_PATH)
+        if not os.path.isdir(cls.CURRENT_EXP_PATH):
+            os.mkdir(cls.CURRENT_EXP_PATH)
+        if not os.path.isdir(cls.CHECKPOINTS_PATH):
+            os.mkdir(cls.CHECKPOINTS_PATH)
+        if not os.path.isdir(cls.RUNS_PATH):
+            os.mkdir(cls.RUNS_PATH)
+        if not os.path.isdir(cls.CURRENT_TB_RUN):
+            os.mkdir(cls.CURRENT_TB_RUN)
+
+
+directory_structure.update(os.path.dirname(os.path.realpath(__file__)))
 
 
 def strtobool(val):
     """
     Convert a string representation of truth to True or False.
 
-    Adapted from distustutils.util.strtobool.
+    Adapted from distutils.util.strtobool.
 
     True values are 'y', 'yes', 't', 'true', 'on', and '1'; false values
     are 'n', 'no', 'f', 'false', 'off', and '0'.  Raises ValueError if
@@ -73,7 +160,6 @@ def tabulate_config(config, **tabulate_kwargs):
     return tabulate(table, headers=("Option", "Value"), **tabulate_kwargs)
 
 
-# pylint: disable=too-few-public-methods
 class ParseNoiseParamRange(argparse.Action):
     """Parse the range of noise parameters."""
 
@@ -140,6 +226,14 @@ def define_parser():
         type=strtobool,
         help="Use pinned memory for tensors allocation during dataset loading. "
         "Supported values are y[es]/n[o], t[rue]/f[alse], case insensitive.",
+    )
+    main_parser.add_argument(
+        "--root-dir",
+        default=directory_structure.ROOT_DIR,
+        type=normalize_path,
+        help="The root directory where artifacts will be created. This directory "
+        "will contain the runs directory for tensorboard and the results directory "
+        "with the checkpoints produced during training.",
     )
     main_parser.add_argument(
         "--fixed-seeds",
@@ -292,20 +386,17 @@ def define_parser():
         "training. Pass an empty string (--log-other-metrics='') to disable",
     )
 
-    checkpoint_group = train_parser.add_argument_group("Checkpoints settings")
-    checkpoint_group.add_argument(
-        "--checkpoints-root",
-        default=os.path.dirname(__file__),
-        type=os.path.realpath,
-        metavar="PATH",
-        help="Root directory for checkpoints directory. The final save location "
-        "will be PATH/checkpoints. Individual files will be saved with the "
-        "following filename pattern: 'n2n_<TIMESTAMP>_<EPOCH>.pt'",
+    checkpoint_group = train_parser.add_argument_group(
+        "Checkpoints settings",
+        description="Checkpoints will be created in "
+        "<ROOT_DIR>/results/<TIMESTAMP>/checkpoints (only <ROOT_DIR> is configurable)."
+        "\nThe individual checkpoint files will follow this naming convention: "
+        "'n2n_<TIMESTAMP>_<epoch>.pt'.",
     )
     checkpoint_group.add_argument(
         "--start-from-checkpoint",
         default=None,
-        type=os.path.realpath,
+        type=normalize_path,
         metavar="PATH",
         help="Load a checkpoint file to restart train. Restart training from "
         "the epoch saved in the checkpoint",
@@ -354,7 +445,7 @@ def define_parser():
     checkpoint_group = test_parser.add_argument_group("Checkpoints settings")
     checkpoint_group.add_argument(
         "test_checkpoint",
-        type=os.path.realpath,
+        type=normalize_path,
         metavar="CHECKPOINT_PATH",
         help="Load a checkpoint file to test.",
     )
@@ -395,6 +486,11 @@ def _default_noise_param(noise_type, phase):
 
 def validate_config(config):
     """Perform additional checks on the configuration."""
+    if config.root_dir != directory_structure.ROOT_DIR:
+        directory_structure.update(config.root_dir)
+
+    directory_structure.create()
+
     if config.command == "train":
         if config.val_param is None:
             config.val_param = _default_noise_param(config.noise_type, "val")
@@ -446,10 +542,26 @@ def parse_config(main_parser, args=None):
     return parsed_args
 
 
+def save_config_file(config):
+    """Save the configuration to the experiment directory."""
+    with open(directory_structure.RUN_CONFIG_PATH, "w") as f:
+        json.dump(vars(config), f, sort_keys=True, indent=4)
+
+
+def read_config_file(config_path=None):
+    """Read the specified configuration file.
+
+    Defaults to the current experiment file.
+    """
+    if config_path is None:
+        config_path = directory_structure.RUN_CONFIG_PATH
+    with open(config_path, "r") as f:
+        config = json.load(f)
+
+    return config
+
+
 if __name__ == "__main__":
-    import json
 
     configs = parse_config(define_parser())
     print(tabulate_config(configs))
-    print()
-    print(json.dumps(vars(configs), sort_keys=True, indent=4))

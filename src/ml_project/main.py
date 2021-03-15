@@ -10,7 +10,12 @@ import torch
 from torch.utils.data import DataLoader
 from torchvision.transforms import Lambda, RandomCrop, ToTensor
 
-from ml_project.config_parser import define_parser, parse_config, tabulate_config
+from ml_project.config_parser import (
+    define_parser,
+    parse_config,
+    save_config_file,
+    tabulate_config,
+)
 from ml_project.datasets import ImageFolderDataset
 from ml_project.models import UNet
 from ml_project.procedures import test, train
@@ -50,6 +55,8 @@ if config.fixed_seeds:
 
 
 if config.command == "train":  # noqa: C901
+    save_config_file(config)
+
     noise_transform = {}
     if config.noise_type == "gaussian":
         train_params = tuple(val / 255.0 for val in config.train_params)

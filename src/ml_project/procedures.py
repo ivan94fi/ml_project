@@ -3,17 +3,16 @@
 import os
 import socket
 import time
-from datetime import datetime
 
 import torch
 from torch.utils.tensorboard import SummaryWriter
 
+from ml_project.config_parser import TIMESTAMP, directory_structure
 from ml_project.gpu_utils import GpuStats
 from ml_project.loggers import ConditionalLogger, CounterSubject, IterableSubject
 from ml_project.utils import (
     MetricTracker,
     ProgressPrinter,
-    checkpoint_fname_template,
     create_figure,
     pad,
     psnr_from_mse,
@@ -46,19 +45,16 @@ def train(  # noqa: C901
         print("Dry run. Not executing training")
         return
 
-    writer = SummaryWriter()  # TODO: use a tmp dir?
+    writer = SummaryWriter(directory_structure.CURRENT_TB_RUN)
     progress_printer = ProgressPrinter(
         config, progress_template="Loss: {:.3f} - PSNR: {:.3f}"
     )
     gpu_handle = GpuStats()
 
     if config.checkpoint_interval is not None:
-        if not os.path.isdir(config.checkpoints_root):
-            raise ValueError("The checkpoint root is not a valid directory")
-        save_dir = os.path.join(config.checkpoints_root, "checkpoints")
-        if not os.path.exists(save_dir):
-            os.mkdir(save_dir)
-        fname_template = os.path.join(save_dir, checkpoint_fname_template())
+        fname_template = os.path.join(
+            directory_structure.CHECKPOINTS_PATH, "n2n_" + TIMESTAMP + "_e{}.pt"
+        )
 
     epochs = IterableSubject()
     phases = IterableSubject()
@@ -203,8 +199,8 @@ def test(dataloader, network, criterion, config):
     phase = "test"
     epoch = 0  # TODO: prendi epoca da checkpoint?
 
-    current_time = datetime.now().strftime("%b%d_%H-%M-%S")
-    test_log_dir = os.path.join("test_runs", current_time + "_" + socket.gethostname())
+    # TODO: cli option for test runs
+    test_log_dir = os.path.join("test_runs", TIMESTAMP + "_" + socket.gethostname())
     writer = SummaryWriter(log_dir=test_log_dir)  # TODO: use a tmp dir?
     progress_printer = ProgressPrinter(
         config, progress_template="Loss: {:.3f} - PSNR: {:.3f}"

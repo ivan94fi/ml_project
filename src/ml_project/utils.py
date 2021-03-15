@@ -1,6 +1,6 @@
 """Utility functions and classes."""
 import math
-from datetime import datetime
+import os
 
 import matplotlib.pyplot as plt
 import torch
@@ -9,6 +9,11 @@ from torchvision.utils import make_grid
 from tqdm import tqdm
 
 from ml_project.datasets import TrainingPair
+
+
+def normalize_path(path):
+    """Get absolute path, following links."""
+    return os.path.realpath(os.path.expanduser(path))
 
 
 def to_channel_last(tensor):
@@ -120,12 +125,6 @@ def get_gaussian_kernel(stddev, dimensions=1, size=None, limit=4):
     else:
         kernel = torch.ger(kernel_1d, kernel_1d)
     return kernel / kernel.sum()
-
-
-def checkpoint_fname_template():
-    """Return a filename template: 'n2n_<current_timestamp>_e{}.pt'."""
-    timestamp = datetime.now().strftime("%b%d_%H-%M")
-    return "n2n_" + timestamp + "_e{}.pt"
 
 
 def create_figure(images, title=None):
