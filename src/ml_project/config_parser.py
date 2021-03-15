@@ -6,6 +6,7 @@ import json
 import os
 import re
 import socket
+import warnings
 from datetime import datetime
 
 from tabulate import tabulate
@@ -22,7 +23,8 @@ from ml_project.utils import normalize_path
 # Specifically, the object that will have this name will be:
 #     - the tensorboard record file (contained in runs directory)
 #     - the directory containing model checkpoints and config in results
-TIMESTAMP = datetime.now().strftime("%b%d_%H-%M-%S")
+TIMESTAMP_FORMAT = "%b%d_%H-%M-%S"
+TIMESTAMP = datetime.now().strftime(TIMESTAMP_FORMAT)
 
 
 class directory_structure:
@@ -486,12 +488,12 @@ def _default_noise_param(noise_type, phase):
 
 def validate_config(config):
     """Perform additional checks on the configuration."""
-    if config.root_dir != directory_structure.ROOT_DIR:
-        directory_structure.update(config.root_dir)
-
-    directory_structure.create()
-
     if config.command == "train":
+        if config.root_dir != directory_structure.ROOT_DIR:
+            directory_structure.update(config.root_dir)
+
+        directory_structure.create()
+
         if config.val_param is None:
             config.val_param = _default_noise_param(config.noise_type, "val")
 
@@ -507,6 +509,24 @@ def validate_config(config):
             print("Validation dataset root picked from environment variable")
 
     elif config.command == "test":
+
+        if not os.path.isfile(config.test_checkpoint):
+            raise ValueError("The checkpoint path is invalid.")
+
+        experiment_dir = os.path.dirname(os.path.dirname(config.test_checkpoint))
+        train_config = read_config_file(os.path.join(experiment_dir, "run_config.json"))
+        test_config = vars(config)
+
+        for key in ["brown_gaussian_std", "noise_type"]:
+            if train_config[key] != test_config[key]:
+                warnings.warn(
+                    "Overriding {}='{}' with the value '{}', "
+                    "used for training the checkpoint.".format(
+                        key, test_config[key], train_config[key]
+                    )
+                )
+                setattr(config, key, train_config[key])
+
         if config.test_param is None:
             config.test_param = _default_noise_param(config.noise_type, "test")
 
