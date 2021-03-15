@@ -72,8 +72,8 @@ if config.command == "train":  # noqa: C901
             noise_transform["train"] = lambda: WhiteGaussianNoise(std=train_params)
             noise_transform["val"] = lambda: WhiteGaussianNoise(std=val_param)
     elif config.noise_type == "poisson":
-        noise_transform["train"] = lambda: PoissonNoise(lmbda=train_params)
-        noise_transform["val"] = lambda: PoissonNoise(lmbda=val_param)
+        noise_transform["train"] = lambda: PoissonNoise(lmbda=config.train_params)
+        noise_transform["val"] = lambda: PoissonNoise(lmbda=config.val_param)
     else:
         raise NotImplementedError
 
@@ -221,7 +221,7 @@ elif config.command == "test":
         else:
             noise_transform["test"] = lambda: WhiteGaussianNoise(std=test_param)
     elif config.noise_type == "poisson":
-        noise_transform["test"] = lambda: PoissonNoise(lmbda=test_param)
+        noise_transform["test"] = lambda: PoissonNoise(lmbda=config.test_param)
     else:
         raise NotImplementedError
 
