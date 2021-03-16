@@ -1,8 +1,10 @@
 """Utility functions and classes."""
 import math
 import os
+import random
 
 import matplotlib.pyplot as plt
+import numpy as np
 import torch
 import torch.nn.functional as F
 from torchvision.utils import make_grid
@@ -41,6 +43,30 @@ def transpose(tensor):
     dims = list(range(tensor.dim()))
     dims[-2:] = dims[-2:][::-1]
     return tensor.permute(dims)
+
+
+# pylint: disable=unused-argument
+def set_external_seeds(worker_id=None):
+    """Set the seeds for the external libraries, based on pytorch's seed.
+
+    The argument is needed because it is provided when this function is used as
+    the worker initialization function.
+
+    Pytorch's seed must be reduced to a 32 bit integer to be fed to numpy and random
+    seed functions.
+
+    This function's objectives are two:
+        1) ensure reproducibility when workers are used (provided that also the
+        main process seeds are fixed)
+        2) correctly set numpy generator when fixed seeds are not needed. By default
+        the state of numpy generator is duplicated in subprocesses, so that workers
+        will produce the same sequence of random numbers, possibly invalidating the
+        original intention of having random numbers.
+    """
+    seed = int(torch.initial_seed() % (2 ** 32))
+    random.seed(seed)
+    np.random.seed(seed)
+    os.environ["PYTHONHASHSEED"] = str(seed)
 
 
 def get_lr_dampening_factor(epoch, total_epochs, percentage_to_dampen):

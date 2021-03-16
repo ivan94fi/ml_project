@@ -1,11 +1,8 @@
 """Main script of the project; all computations start from here."""
 import math
-import os
-import random
 import time
 from functools import partial
 
-import numpy as np
 import torch
 from torch.utils.data import DataLoader
 from torchvision.transforms import Lambda, RandomCrop, ToTensor
@@ -26,7 +23,7 @@ from ml_project.transforms import (
     ResizeIfTooSmall,
     WhiteGaussianNoise,
 )
-from ml_project.utils import get_lr_dampening_factor
+from ml_project.utils import get_lr_dampening_factor, set_external_seeds
 
 complete_start = time.time()
 
@@ -39,22 +36,14 @@ print(tabulate_config(config))
 print("=" * 60)
 
 
-# pylint: disable=unused-argument
-def _set_external_seeds(worker_id=None):
-    random.seed(config.seed)
-    np.random.seed(config.seed)
-    os.environ["PYTHONHASHSEED"] = str(config.seed)
-
-
-if config.fixed_seeds:
-    print("Using fixed seeds for RNGs")
-    torch.manual_seed(config.seed)
-    torch.backends.cudnn.deterministic = True
-    torch.backends.cudnn.benchmark = False
-    _set_external_seeds()
-
-
 if config.command == "train":  # noqa: C901
+    if config.fixed_seeds:
+        print("Using fixed seeds for RNGs")
+        torch.manual_seed(config.seed)
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
+        set_external_seeds()
+
     save_config_file(config)
 
     noise_transform = {}
@@ -139,7 +128,7 @@ if config.command == "train":  # noqa: C901
         shuffle=config.shuffle,
         num_workers=config.workers,
         pin_memory=config.pin_memory,
-        worker_init_fn=_set_external_seeds if config.fixed_seeds else None,
+        worker_init_fn=set_external_seeds,
     )
 
     validation_dataloader = DataLoader(
@@ -148,7 +137,7 @@ if config.command == "train":  # noqa: C901
         shuffle=False,
         num_workers=config.workers,
         pin_memory=config.pin_memory,
-        worker_init_fn=_set_external_seeds if config.fixed_seeds else None,
+        worker_init_fn=set_external_seeds,
     )
 
     net = UNet().to(config.device)
@@ -246,7 +235,7 @@ elif config.command == "test":
         shuffle=False,
         num_workers=config.workers,
         pin_memory=config.pin_memory,
-        worker_init_fn=_set_external_seeds if config.fixed_seeds else None,
+        worker_init_fn=set_external_seeds,
     )
 
     net = UNet().to(config.device)
