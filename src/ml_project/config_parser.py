@@ -1,10 +1,11 @@
 """Functions for options parsing."""
-# pylint: disable=C0103,R0903
+# pylint: disable=C0103,R0903,R0912
 
 import argparse
 import json
 import os
 import re
+import shutil
 import socket
 import warnings
 from datetime import datetime
@@ -42,6 +43,15 @@ class directory_structure:
             <TIMESTAMP1>_host
             <TIMESTAMP2>_host
             ...
+        test_runs
+            test_<TRAIN_TIMESTAMP1>
+                <TIMESTAMP1>
+                    events
+                    train_config.json
+                <TIMESTAMP1>
+                    events
+                    train_config.json
+            ...
 
     """
 
@@ -61,6 +71,7 @@ class directory_structure:
 
     # Tensorboard runs: kept separate for better visualization
     RUNS_PATH = None
+    TEST_RUNS_PATH = None
 
     # The name of the current tensorboard run
     CURRENT_TB_RUN = None
@@ -78,6 +89,7 @@ class directory_structure:
         cls.RUN_CONFIG_PATH = os.path.join(cls.CURRENT_EXP_PATH, "run_config.json")
 
         cls.RUNS_PATH = os.path.join(cls.ROOT_DIR, "runs")
+        cls.TEST_RUNS_PATH = os.path.join(cls.ROOT_DIR, "test_runs")
 
         cls.CURRENT_TB_RUN = os.path.join(
             cls.RUNS_PATH, TIMESTAMP + "_" + socket.gethostname()
@@ -98,6 +110,8 @@ class directory_structure:
             os.mkdir(cls.RUNS_PATH)
         if not os.path.isdir(cls.CURRENT_TB_RUN):
             os.mkdir(cls.CURRENT_TB_RUN)
+        if not os.path.isdir(cls.TEST_RUNS_PATH):
+            os.mkdir(cls.TEST_RUNS_PATH)
 
 
 directory_structure.update(os.path.dirname(os.path.realpath(__file__)))
@@ -486,13 +500,14 @@ def _default_noise_param(noise_type, phase):
     return param_value
 
 
-def validate_config(config):
+def validate_config(config):  # noqa: C901
     """Perform additional checks on the configuration."""
-    if config.command == "train":
-        if config.root_dir != directory_structure.ROOT_DIR:
-            directory_structure.update(config.root_dir)
+    if config.root_dir != directory_structure.ROOT_DIR:
+        directory_structure.update(config.root_dir)
 
-        directory_structure.create()
+    directory_structure.create()
+
+    if config.command == "train":
 
         if config.val_param is None:
             config.val_param = _default_noise_param(config.noise_type, "val")
@@ -513,8 +528,37 @@ def validate_config(config):
         if not os.path.isfile(config.test_checkpoint):
             raise ValueError("The checkpoint path is invalid.")
 
+        checkpoint_name = os.path.basename(config.test_checkpoint).replace(".pt", "")
+        print("checkpoint_name", checkpoint_name)
+
+        # All the tests for this train run will reside in this directory
+        test_base_dir = os.path.join(
+            directory_structure.TEST_RUNS_PATH, "test_" + checkpoint_name
+        )
+        print("test_base_dir", test_base_dir)
+        if not os.path.isdir(test_base_dir):
+            os.mkdir(test_base_dir)
+
+        # This is the directory for the current run of tests
+        current_test_run_path = os.path.join(test_base_dir, TIMESTAMP)
+        os.mkdir(current_test_run_path)
+        # This is used by tensorboard for its artifacts
+        test_log_dir = os.path.join(current_test_run_path, "events")
+        os.mkdir(test_log_dir)
+        config.test_log_dir = test_log_dir
+
+        # Get the directory of the experiment for the given checkpoint
         experiment_dir = os.path.dirname(os.path.dirname(config.test_checkpoint))
-        train_config = read_config_file(os.path.join(experiment_dir, "run_config.json"))
+        print("experiment_dir", experiment_dir)
+        # This is the configuration used to train the checkpoint to test
+        train_config_path = os.path.join(experiment_dir, "run_config.json")
+        train_config = read_config_file(train_config_path)
+
+        # Make a copy of the train configuration in the current test directory\
+        shutil.copy(
+            train_config_path, os.path.join(current_test_run_path, "train_config.json")
+        )
+
         test_config = vars(config)
 
         for key in ["brown_gaussian_std", "noise_type"]:
@@ -562,9 +606,11 @@ def parse_config(main_parser, args=None):
     return parsed_args
 
 
-def save_config_file(config):
+def save_config_file(config, path=None):
     """Save the configuration to the experiment directory."""
-    with open(directory_structure.RUN_CONFIG_PATH, "w") as f:
+    if path is None:
+        path = directory_structure.RUN_CONFIG_PATH
+    with open(path, "w") as f:
         json.dump(vars(config), f, sort_keys=True, indent=4)
 
 

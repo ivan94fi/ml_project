@@ -1,7 +1,6 @@
 # pylint: disable=R0912,R0913,R0914,R0915
 """Functions that define train/test procedures."""
 import os
-import socket
 import time
 
 import torch
@@ -197,11 +196,9 @@ def test(dataloader, network, criterion, config):
 
     batch_size = 1
     phase = "test"
-    epoch = 0  # TODO: prendi epoca da checkpoint?
+    epoch = config.starting_epoch
 
-    # TODO: cli option for test runs
-    test_log_dir = os.path.join("test_runs", TIMESTAMP + "_" + socket.gethostname())
-    writer = SummaryWriter(log_dir=test_log_dir)  # TODO: use a tmp dir?
+    writer = SummaryWriter(log_dir=config.test_log_dir)
     progress_printer = ProgressPrinter(
         config, progress_template="Loss: {:.3f} - PSNR: {:.3f}"
     )

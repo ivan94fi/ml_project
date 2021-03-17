@@ -241,6 +241,9 @@ elif config.command == "test":
     net = UNet().to(config.device)
     net.load_state_dict(checkpoint["net"])
 
+    # Just to print the epoch used in logging
+    config.starting_epoch = checkpoint["epoch"]
+
     criterion = torch.nn.MSELoss()
 
     test_loop_start = time.time()
