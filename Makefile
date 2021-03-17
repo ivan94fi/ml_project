@@ -151,25 +151,6 @@ start-db:
 stop-db:
 	pg_ctl stop -D $(HOME)/.local/pgsql/data/
 
-.PHONY: ensure-mlflow-tracking-uri
-ensure-mlflow-tracking-uri:
-ifndef MLFLOW_TRACKING_URI
-	echo "First define the tracking server uri as a variable, for example:"
-	echo "    export MLFLOW_TRACKING_URI=\"postgresql://mlflow:pass@localhost/mlflowdb\""
-	echo "or:"
-	echo "    export MLFLOW_TRACKING_URI=./mlruns"
-	echo ""
-	exit 1
-endif
-
-.PHONY: start-mlflow-ui
-start-mlflow-ui: ensure-mlflow-tracking-uri
-	mlflow ui --backend-store-uri $(MLFLOW_TRACKING_URI)
-
-.PHONY: start-mlflow-server
-start-mlflow-server: ensure-mlflow-tracking-uri
-	mlflow server --backend-store-uri $(MLFLOW_TRACKING_URI) --default-artifact-root ./mlruns --static-prefix /ml-project
-
 #################################################################################
 # Self Documenting Commands                                                     #
 #################################################################################
