@@ -187,35 +187,6 @@ def define_parser():
         help="Device where the model should be run on",
     )
     main_parser.add_argument(
-        "-n",
-        "--num-examples",
-        default=None,
-        type=int,
-        metavar="N",
-        help="Number of examples from the dataset to use",
-    )
-    main_parser.add_argument(
-        "--input-size",
-        default=256,
-        type=int,
-        help="Dimensions of the input layer of the network",
-    )
-    main_parser.add_argument(
-        "--stretch",
-        default=True,
-        type=strtobool,
-        help="Whether to retain the aspect ratio of small images when resized. If "
-        "True small images will be stretched to match (input_size, input_size); if "
-        "False, small images will be upscaled uniformly in both directions until the "
-        "smaller side matches input_size, then cropped to (input_size, input,size)",
-    )
-    main_parser.add_argument(
-        "--shuffle",
-        default=True,
-        type=strtobool,
-        help="Whether to randomly shuffle the dataset upon loading",
-    )
-    main_parser.add_argument(
         "-w",
         "--workers",
         default=4,
@@ -236,15 +207,6 @@ def define_parser():
         help="The root directory where artifacts will be created. This directory "
         "will contain the runs directory for tensorboard and the results directory "
         "with the checkpoints produced during training.",
-    )
-    main_parser.add_argument(
-        "--fixed-seeds",
-        default=True,
-        type=strtobool,
-        help="Whether to use fixed seeds for random number generators in the script",
-    )
-    main_parser.add_argument(
-        "--seed", default=42, type=int, help="The seed for all RNGs in the program."
     )
     main_parser.add_argument(
         "--progress-bar",
@@ -302,6 +264,44 @@ def define_parser():
         "train",
         help="Execute training procedure",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    train_parser.add_argument(
+        "-n",
+        "--num-examples",
+        default=None,
+        type=int,
+        metavar="N",
+        help="Number of examples from the dataset to use",
+    )
+    train_parser.add_argument(
+        "--input-size",
+        default=256,
+        type=int,
+        help="Dimensions of the input layer of the network",
+    )
+    train_parser.add_argument(
+        "--stretch",
+        default=True,
+        type=strtobool,
+        help="Whether to retain the aspect ratio of small images when resized. If "
+        "True small images will be stretched to match (input_size, input_size); if "
+        "False, small images will be upscaled uniformly in both directions until the "
+        "smaller side matches input_size, then cropped to (input_size, input,size)",
+    )
+    train_parser.add_argument(
+        "--shuffle",
+        default=True,
+        type=strtobool,
+        help="Whether to randomly shuffle the dataset upon loading",
+    )
+    train_parser.add_argument(
+        "--fixed-seeds",
+        default=True,
+        type=strtobool,
+        help="Whether to use fixed seeds for random number generators in the script",
+    )
+    train_parser.add_argument(
+        "--seed", default=42, type=int, help="The seed for all RNGs in the program."
     )
     train_parser.add_argument(
         "-e",
