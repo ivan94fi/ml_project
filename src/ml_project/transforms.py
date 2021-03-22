@@ -218,13 +218,8 @@ class ComposeCopies(Compose):
 
     """
 
-    def __init__(self, transforms):
+    def __init__(self, *transforms):
         super().__init__(None)
-
-        try:
-            iter(transforms)
-        except TypeError:
-            raise ValueError("transforms parameter should be iterable") from None
 
         self.transforms = [
             copy.deepcopy(t) for t in _flatten_composed_transforms(transforms)
@@ -243,7 +238,7 @@ def _flatten_composed_transforms(transforms):
     """Convert nested ComposeCopies objects to a single list of transforms."""
     flattened = []
     for transform in transforms:
-        if isinstance(transform, ComposeCopies):
+        if isinstance(transform, (ComposeCopies, list, tuple)):
             flattened.extend(_flatten_composed_transforms(transform))
         else:
             flattened.append(transform)

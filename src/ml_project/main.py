@@ -68,23 +68,17 @@ if config.command == "train":  # noqa: C901
 
     batch_sizes = {"train": config.batch_size, "val": 1}
 
-    sample_transforms = ComposeCopies([noise_transform["train"]()])
-    target_transforms = ComposeCopies(
-        sample_transforms if config.train_mode == "n2n" else []
-    )
-    common_transforms = ComposeCopies(
-        [
+    transforms = {
+        "common": ComposeCopies(
             ResizeIfTooSmall(size=config.input_size, stretch=config.stretch),
             RandomCrop(size=config.input_size),
             ToTensor(),
             Lambda(lambda sample: sample - 0.5),  # move the tensors in [-0.5, 0.5]
-        ]
-    )
-
-    transforms = {
-        "common": common_transforms,
-        "sample": sample_transforms,
-        "target": target_transforms,
+        ),
+        "sample": ComposeCopies(noise_transform["train"]()),
+        "target": ComposeCopies(noise_transform["train"]())
+        if config.train_mode == "n2n"
+        else [],
     }
 
     print("Dataset root:", config.dataset_root)
@@ -96,7 +90,7 @@ if config.command == "train":  # noqa: C901
 
         train_dataset = dataset
         val_transforms = {
-            "common": ComposeCopies([ToTensor(), Lambda(lambda sample: sample - 0.5)]),
+            "common": ComposeCopies(ToTensor(), Lambda(lambda sample: sample - 0.5)),
             "sample": noise_transform["val"](),
             "target": None,
         }
@@ -105,7 +99,7 @@ if config.command == "train":  # noqa: C901
         )
     else:
         val_transforms = {
-            "common": ComposeCopies([common_transforms]),
+            "common": ComposeCopies(transforms["common"]),
             "sample": noise_transform["val"](),
             "target": None,
         }
@@ -217,7 +211,7 @@ elif config.command == "test":
     print("Using test dataset:", config.test_dataset_root)
 
     test_transforms = {
-        "common": ComposeCopies([ToTensor(), Lambda(lambda sample: sample - 0.5)]),
+        "common": ComposeCopies(ToTensor(), Lambda(lambda sample: sample - 0.5)),
         "sample": noise_transform["test"](),
         "target": None,
     }
