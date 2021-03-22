@@ -255,7 +255,7 @@ def define_parser():
     noise_group.add_argument(
         "--noise-type",
         default="gaussian",
-        choices=["gaussian", "poisson"],
+        choices=["gaussian", "poisson", "textual"],
         type=str,
         help="The type of noise to add to the examples/targets",
     )
@@ -486,7 +486,7 @@ def define_parser():
     return main_parser
 
 
-default_noise_values = {"gaussian": 25, "poisson": 30}
+default_noise_values = {"gaussian": 25, "poisson": 30, "textual": 0.25}
 
 
 def _default_noise_param(noise_type, phase):

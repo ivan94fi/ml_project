@@ -21,6 +21,7 @@ from ml_project.transforms import (
     ComposeCopies,
     PoissonNoise,
     ResizeIfTooSmall,
+    TextualNoise,
     WhiteGaussianNoise,
 )
 from ml_project.utils import get_lr_dampening_factor, set_external_seeds
@@ -63,23 +64,46 @@ if config.command == "train":  # noqa: C901
     elif config.noise_type == "poisson":
         noise_transform["train"] = lambda: PoissonNoise(lmbda=config.train_params)
         noise_transform["val"] = lambda: PoissonNoise(lmbda=config.val_param)
+    elif config.noise_type == "textual":
+        noise_transform["train"] = lambda: TextualNoise(coverage=config.train_params)
+        noise_transform["val"] = lambda: TextualNoise(coverage=config.val_param)
     else:
         raise NotImplementedError
 
     batch_sizes = {"train": config.batch_size, "val": 1}
 
-    transforms = {
-        "common": ComposeCopies(
-            ResizeIfTooSmall(size=config.input_size, stretch=config.stretch),
-            RandomCrop(size=config.input_size),
-            ToTensor(),
-            Lambda(lambda sample: sample - 0.5),  # move the tensors in [-0.5, 0.5]
-        ),
-        "sample": ComposeCopies(noise_transform["train"]()),
-        "target": ComposeCopies(noise_transform["train"]())
-        if config.train_mode == "n2n"
-        else [],
-    }
+    if config.train_mode == "n2n":
+        target_noise = noise_transform["train"]()
+    else:
+        target_noise = lambda img: img  # noqa
+
+    if config.noise_type == "textual":
+        # This noise type is applied on PIL images. Delay ToTensor after the transform
+        transforms = {
+            "common": ComposeCopies(
+                ResizeIfTooSmall(size=config.input_size, stretch=config.stretch),
+                RandomCrop(size=config.input_size),
+            ),
+            "sample": ComposeCopies(
+                noise_transform["train"](),
+                ToTensor(),
+                Lambda(lambda sample: sample - 0.5),
+            ),
+            "target": ComposeCopies(
+                target_noise, ToTensor(), Lambda(lambda sample: sample - 0.5),
+            ),
+        }
+    else:
+        transforms = {
+            "common": ComposeCopies(
+                ResizeIfTooSmall(size=config.input_size, stretch=config.stretch),
+                RandomCrop(size=config.input_size),
+                ToTensor(),
+                Lambda(lambda sample: sample - 0.5),  # move the tensors in [-0.5, 0.5]
+            ),
+            "sample": ComposeCopies(noise_transform["train"]()),
+            "target": target_noise,
+        }
 
     print("Dataset root:", config.dataset_root)
     full_dataset = ImageFolderDataset(config.dataset_root, transforms=transforms)
@@ -89,20 +113,48 @@ if config.command == "train":  # noqa: C901
         print("Using external validation dataset:", config.val_dataset_root)
 
         train_dataset = dataset
-        val_transforms = {
-            "common": ComposeCopies(ToTensor(), Lambda(lambda sample: sample - 0.5)),
-            "sample": noise_transform["val"](),
-            "target": None,
-        }
+        if config.noise_type == "textual":
+            val_transforms = {
+                "common": None,
+                "sample": ComposeCopies(
+                    noise_transform["val"](),
+                    ToTensor(),
+                    Lambda(lambda sample: sample - 0.5),
+                ),
+                "target": ComposeCopies(
+                    ToTensor(), Lambda(lambda sample: sample - 0.5)
+                ),
+            }
+        else:
+            val_transforms = {
+                "common": ComposeCopies(
+                    ToTensor(), Lambda(lambda sample: sample - 0.5)
+                ),
+                "sample": noise_transform["val"](),
+                "target": None,
+            }
         validation_dataset = ImageFolderDataset(
             config.val_dataset_root, transforms=val_transforms
         )
     else:
-        val_transforms = {
-            "common": ComposeCopies(transforms["common"]),
-            "sample": noise_transform["val"](),
-            "target": None,
-        }
+        if config.noise_type == "textual":
+            val_transforms = {
+                "common": ComposeCopies(transforms["common"]),
+                "sample": ComposeCopies(
+                    noise_transform["val"](),
+                    ToTensor(),
+                    Lambda(lambda sample: sample - 0.5),
+                ),
+                "target": ComposeCopies(
+                    ToTensor(), Lambda(lambda sample: sample - 0.5)
+                ),
+            }
+        else:
+            val_transforms = {
+                "common": ComposeCopies(transforms["common"]),
+                "sample": noise_transform["val"](),
+                "target": None,
+            }
 
         train_dataset, validation_dataset = dataset.split_train_validation(
             train_percentage=config.train_percentage, val_transforms=val_transforms
@@ -136,7 +188,10 @@ if config.command == "train":  # noqa: C901
 
     net = UNet().to(config.device)
 
-    criterion = torch.nn.MSELoss()
+    if config.noise_type == "textual":
+        criterion = torch.nn.L1Loss()
+    else:
+        criterion = torch.nn.MSELoss()
 
     optimizer = torch.optim.Adam(
         net.parameters(), lr=config.learning_rate, betas=(0.9, 0.99)

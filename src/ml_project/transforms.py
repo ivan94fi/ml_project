@@ -2,10 +2,12 @@
 
 import copy
 import random
+import string
 
 import torch
 import torch.nn.functional as F
 import torchvision.transforms.functional as TF
+from PIL import Image, ImageDraw, ImageFont
 from torchvision.transforms import Compose
 
 from ml_project.utils import get_gaussian_kernel, transpose
@@ -201,6 +203,115 @@ class PoissonNoise:
     def __repr__(self):
         """Print an adequate representation of the class."""
         return self.__class__.__name__ + "(lmbda={})".format(self.lmbda)
+
+
+def get_coverage(mask):
+    """Calculate coverage as average value over a binary mask."""
+    tensor = torch.ByteTensor(torch.ByteStorage.from_buffer(mask.tobytes()))
+    return tensor.sum().item() / tensor.numel()
+
+
+def _float_or_float2tuple(param, param_name):
+    is_range = False
+    try:
+        param = float(param)
+    except TypeError as t_e:
+        if isinstance(param, (tuple, list)):
+            if len(param) != 2:
+                raise ValueError(param_name + " must be a tuple with size 2") from t_e
+            try:
+                param = tuple(map(float, param))
+                is_range = True
+            except ValueError as e:
+                raise ValueError(param_name + " must be a tuple of floats") from e
+        else:
+            raise ValueError(
+                param_name + " must be a float or tuple of floats"
+            ) from t_e
+    return param, is_range
+
+
+class TextualNoise:
+    """
+    Custom transform to add text noise to a tensor.
+
+    Parameters
+    ----------
+    coverage: float or tuple of float
+        A value (or range of values) in [0,1] that represents the percentage
+        of pixels that should be covered by text in the noisy image
+    font_filename: str
+        The name of the font file to load. Defaults to DejaVu serif.
+    sizes_range: iterable
+        The font sizes to use when corrupting the image
+    """
+
+    def __init__(self, coverage=0.3, font_filename=None, sizes_range=None):
+        self.characters = string.ascii_letters + string.punctuation + string.digits
+
+        if font_filename is None:
+            font_filename = "/usr/share/fonts/truetype/dejavu/DejaVuSerif.ttf"
+        self.font_filename = font_filename
+
+        if sizes_range is None:
+            sizes_range = range(10, 32 + 1, 2)
+        self.sizes_range = sizes_range
+
+        self.fonts = self._read_fonts()
+
+        self.coverage, self.is_range = _float_or_float2tuple(coverage, "coverage")
+
+    def _read_fonts(self):
+        return [
+            ImageFont.truetype(self.font_filename, size) for size in self.sizes_range
+        ]
+
+    def __call__(self, sample):
+        """Add textual noise to the input sample."""
+        coverage = self.get_coverage()
+        self.add_text(sample, coverage)
+
+        return sample
+
+    def add_text(self, im, coverage):
+        """Corrupt the image with the given coverage percentage."""
+        draw = ImageDraw.Draw(im)
+        mask = Image.new("L", im.size, 0)
+        mask_draw = ImageDraw.Draw(mask)
+        while get_coverage(mask) < coverage:
+            x = random.uniform(0, im.size[0])
+            y = random.uniform(0, im.size[1])
+            text = "".join(random.choices(self.characters, k=random.randint(15, 30)))
+            font = random.choice(self.fonts)
+            color = tuple(random.randint(0, 255) for _ in "RGB")
+            draw.text((x, y), text, font=font, fill=color, anchor="mm")
+            mask_draw.text((x, y), text, font=font, fill=1, anchor="mm")
+
+        return im
+
+    def get_coverage(self):
+        """Sample a random coverage or return it if it is a number."""
+        if self.is_range:
+            return random.uniform(self.coverage[0], self.coverage[1])
+        return self.coverage
+
+    def __repr__(self):
+        """Print an adequate representation of the class."""
+        return self.__class__.__name__ + "(coverage={})".format(self.coverage)
+
+    def __getstate__(self):
+        """Pickle."""
+        state = self.__dict__.copy()
+        # Remove the unpicklable fonts attribute
+        del state["fonts"]
+        return state
+
+    def __setstate__(self, state):
+        """Unpickle."""
+        # Restore normal instance attributes
+        self.__dict__.update(state)
+        # Restore fonts from other attributes
+        self.fonts = self._read_fonts()
 
 
 class ComposeCopies(Compose):
