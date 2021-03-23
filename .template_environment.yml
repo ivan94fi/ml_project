@@ -9,6 +9,7 @@ dependencies:
   - pytorch=<PYTORCH_VERSION>         *ERROR* Use make to generate final environment.yml
   - cudatoolkit=<CUDATOOLKIT_VERSION> *ERROR* Use make to generate final environment.yml
   - torchvision
+  - pillow=8.1.2
   - tqdm
   - matplotlib
   - py3nvml
