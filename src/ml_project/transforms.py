@@ -13,6 +13,26 @@ from torchvision.transforms import Compose
 from ml_project.utils import get_gaussian_kernel, transpose
 
 
+def _float_or_float2tuple(param):
+    is_range = False
+    try:
+        param = float(param)
+    except TypeError as t_e:
+        if isinstance(param, (tuple, list)):
+            if len(param) != 2:
+                raise ValueError("The parameter must be a tuple with size 2") from t_e
+            try:
+                param = tuple(map(float, param))
+                is_range = True
+            except ValueError as e:
+                raise ValueError("The parameter must be a tuple of floats") from e
+        else:
+            raise ValueError(
+                "The parameter must be a float or tuple of floats"
+            ) from t_e
+    return param, is_range
+
+
 class ResizeIfTooSmall:
     """
     Custom transformation implementing resize logic for small images.
@@ -65,24 +85,10 @@ class WhiteGaussianNoise:
     def __init__(self, mean=0.0, std=1.0):
         self.mean = mean
         self.std = std
-        self.std_is_range = False
-        try:
-            self.std = float(self.std)
-        except TypeError as t_e:
-            if isinstance(self.std, (tuple, list)):
-                if len(self.std) != 2:
-                    raise ValueError("std must be a tuple with size 2") from t_e
-                try:
-                    self.std = tuple(map(float, self.std))
-                    self.std_is_range = True
-                except ValueError as e:
-                    raise ValueError("std must be a tuple of floats") from e
-            else:
-                raise ValueError("std must be a float or tuple of floats") from t_e
 
     def __call__(self, sample):
         """Add gaussian noise to the input sample."""
-        noise = self.generate_gaussian_noise(sample.shape, self.get_std())
+        noise = self.generate_gaussian_noise(sample.shape, self.std)
         return sample + noise
 
     def generate_gaussian_noise(self, shape, std):
@@ -90,15 +96,25 @@ class WhiteGaussianNoise:
         noise = torch.randn(shape) * std + self.mean
         return noise
 
-    def get_std(self):
+    @property
+    def std(self):
         """Sample a random std or return it if it is a number."""
-        if self.std_is_range:
-            return random.uniform(self.std[0], self.std[1])
-        return self.std
+        if self.is_range:
+            return random.uniform(self._std[0], self._std[1])
+        return self._std
+
+    @std.setter
+    def std(self, value):
+        try:
+            self._std, self.is_range = _float_or_float2tuple(value)
+        except ValueError as e:
+            raise ValueError("std malformed") from e
 
     def __repr__(self):
         """Print an adequate representation of the class."""
-        return self.__class__.__name__ + "(mean={}, std={})".format(self.mean, self.std)
+        return self.__class__.__name__ + "(mean={}, std={})".format(
+            self.mean, self._std
+        )
 
 
 class BrownGaussianNoise(WhiteGaussianNoise):
@@ -135,7 +151,7 @@ class BrownGaussianNoise(WhiteGaussianNoise):
 
     def __call__(self, sample):
         """Add brown gaussian noise to the input sample."""
-        std = self.get_std()
+        std = self.std
         white_noise = self.generate_gaussian_noise(sample.shape, std)
         brown_noise = self.filter_noise(white_noise)
         brown_noise = (brown_noise / brown_noise.std()) * std
@@ -155,7 +171,7 @@ class BrownGaussianNoise(WhiteGaussianNoise):
     def __repr__(self):
         """Print an adequate representation of the class."""
         return self.__class__.__name__ + "(kernel_std={}, mean={}, std={})".format(
-            self.kernel_std, self.mean, self.std
+            self.kernel_std, self.mean, self._std
         )
 
 
@@ -174,61 +190,35 @@ class PoissonNoise:
 
     def __init__(self, lmbda=1.0):
         self.lmbda = lmbda
-        self.lmbda_is_range = False
-        try:
-            self.lmbda = float(self.lmbda)
-        except TypeError as t_e:
-            if isinstance(self.lmbda, (tuple, list)):
-                if len(self.lmbda) != 2:
-                    raise ValueError("lmbda must be a tuple with size 2") from t_e
-                try:
-                    self.lmbda = tuple(map(float, self.lmbda))
-                    self.lmbda_is_range = True
-                except ValueError as e:
-                    raise ValueError("lmbda must be a tuple of floats") from e
-            else:
-                raise ValueError("lmbda must be a float or tuple of floats") from t_e
 
     def __call__(self, sample):
         """Add Poisson noise to the input sample."""
-        lmbda = self.get_lmbda()
+        lmbda = self.lmbda
         return torch.poisson(lmbda * (sample + 0.5)) / lmbda - 0.5
 
-    def get_lmbda(self):
+    @property
+    def lmbda(self):
         """Sample a random lmbda or return it if it is a number."""
-        if self.lmbda_is_range:
-            return random.uniform(self.lmbda[0], self.lmbda[1])
-        return self.lmbda
+        if self.is_range:
+            return random.uniform(self._lmbda[0], self._lmbda[1])
+        return self._lmbda
+
+    @lmbda.setter
+    def lmbda(self, value):
+        try:
+            self._lmbda, self.is_range = _float_or_float2tuple(value)
+        except ValueError as e:
+            raise ValueError("lmbda malformed") from e
 
     def __repr__(self):
         """Print an adequate representation of the class."""
-        return self.__class__.__name__ + "(lmbda={})".format(self.lmbda)
+        return self.__class__.__name__ + "(lmbda={})".format(self._lmbda)
 
 
 def get_coverage(mask):
     """Calculate coverage as average value over a binary mask."""
     tensor = torch.ByteTensor(torch.ByteStorage.from_buffer(mask.tobytes()))
     return tensor.sum().item() / tensor.numel()
-
-
-def _float_or_float2tuple(param, param_name):
-    is_range = False
-    try:
-        param = float(param)
-    except TypeError as t_e:
-        if isinstance(param, (tuple, list)):
-            if len(param) != 2:
-                raise ValueError(param_name + " must be a tuple with size 2") from t_e
-            try:
-                param = tuple(map(float, param))
-                is_range = True
-            except ValueError as e:
-                raise ValueError(param_name + " must be a tuple of floats") from e
-        else:
-            raise ValueError(
-                param_name + " must be a float or tuple of floats"
-            ) from t_e
-    return param, is_range
 
 
 class TextualNoise:
@@ -247,6 +237,8 @@ class TextualNoise:
     """
 
     def __init__(self, coverage=0.3, font_filename=None, sizes_range=None):
+        self.coverage = coverage
+
         self.characters = string.ascii_letters + string.punctuation + string.digits
 
         if font_filename is None:
@@ -259,8 +251,6 @@ class TextualNoise:
 
         self.fonts = self._read_fonts()
 
-        self.coverage, self.is_range = _float_or_float2tuple(coverage, "coverage")
-
     def _read_fonts(self):
         return [
             ImageFont.truetype(self.font_filename, size) for size in self.sizes_range
@@ -268,8 +258,7 @@ class TextualNoise:
 
     def __call__(self, sample):
         """Add textual noise to the input sample."""
-        coverage = self.get_coverage()
-        self.add_text(sample, coverage)
+        self.add_text(sample, self.coverage)
 
         return sample
 
@@ -289,15 +278,29 @@ class TextualNoise:
 
         return im
 
-    def get_coverage(self):
+    @property
+    def coverage(self):
         """Sample a random coverage or return it if it is a number."""
         if self.is_range:
-            return random.uniform(self.coverage[0], self.coverage[1])
-        return self.coverage
+            return random.uniform(self._coverage[0], self._coverage[1])
+        return self._coverage
+
+    @coverage.setter
+    def coverage(self, value):
+        try:
+            self._coverage, self.is_range = _float_or_float2tuple(value)
+        except ValueError as e:
+            raise ValueError("coverage malformed") from e
+        if self.is_range:
+            if not 0 <= self._coverage[0] <= 1 or not 0 <= self._coverage[1] <= 1:
+                raise ValueError("coverage is a probability, must be in [0, 1]")
+        else:
+            if not 0 <= self._coverage <= 1:
+                raise ValueError("coverage is a probability, must be in [0, 1]")
 
     def __repr__(self):
         """Print an adequate representation of the class."""
-        return self.__class__.__name__ + "(coverage={})".format(self.coverage)
+        return self.__class__.__name__ + "(coverage={})".format(self._coverage)
 
     def __getstate__(self):
         """Pickle."""
