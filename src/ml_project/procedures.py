@@ -1,4 +1,4 @@
-# pylint: disable=R0912,R0913,R0914,R0915
+# pylint: disable=R0912,R0913,R0914,R0915,W0212
 """Functions that define train/test procedures."""
 import os
 import time
@@ -153,12 +153,16 @@ def train(  # noqa: C901
             writer.add_scalar("Metrics/PSNR/" + phase, epoch_psnr, epoch)
 
             if phase == "train":
-                lr_scheduler.step()
-                writer.add_scalar("Utils/lr", lr_scheduler.get_last_lr()[0], epoch)
+                if config.lr_scheduling_method != "reduce_on_plateau":
+                    lr_scheduler.step()
+                    writer.add_scalar("Utils/lr", lr_scheduler.get_last_lr()[0], epoch)
                 epoch_time = int(start_time - epoch_start_time)
                 writer.add_scalar("Utils/epoch_time", epoch_time, epoch)
 
             if phase == "val":
+                if config.lr_scheduling_method == "reduce_on_plateau":
+                    lr_scheduler.step(epoch_psnr)
+                    writer.add_scalar("Utils/lr", lr_scheduler._last_lr[0], epoch)
                 print()
 
         if checkpoint_logger.should_log():

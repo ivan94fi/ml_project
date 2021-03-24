@@ -205,10 +205,15 @@ if config.command == "train":  # noqa: C901
             total_epochs=config.epochs,
             percentage_to_dampen=config.lr_dampen_percentage,
         )
+        lr_scheduler = torch.optim.lr_scheduler.LambdaLR(
+            optimizer, lr_scheduling_function
+        )
+    elif config.lr_scheduling_method == "reduce_on_plateau":
+        lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+            optimizer, mode="max", factor=0.5, patience=2
+        )
     else:
         raise ValueError("Scheduling method not supported")
-
-    lr_scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_scheduling_function)
 
     if config.start_from_checkpoint is not None:
         print("Restore checkpoint " + config.start_from_checkpoint)

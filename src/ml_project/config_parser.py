@@ -350,7 +350,7 @@ def define_parser():
     train_parser.add_argument(
         "--lr-scheduling-method",
         default="cosine",
-        choices=["cosine"],
+        choices=["cosine", "reduce_on_plateau"],
         type=str,
         metavar="METHOD",
         help="The learning rate scheduling method to use during training.",
