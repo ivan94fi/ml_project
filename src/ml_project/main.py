@@ -14,12 +14,14 @@ from ml_project.config_parser import (
     tabulate_config,
 )
 from ml_project.datasets import ImageFolderDataset
+from ml_project.losses import AnnealedL0Loss
 from ml_project.models import UNet
 from ml_project.procedures import test, train
 from ml_project.transforms import (
     BrownGaussianNoise,
     ComposeCopies,
     PoissonNoise,
+    RandomInpulseNoise,
     ResizeIfTooSmall,
     TextualNoise,
     WhiteGaussianNoise,
@@ -67,8 +69,12 @@ if config.command == "train":  # noqa: C901
     elif config.noise_type == "textual":
         noise_transform["train"] = lambda: TextualNoise(coverage=config.train_params)
         noise_transform["val"] = lambda: TextualNoise(coverage=config.val_param)
+    elif config.noise_type == "random_inpulse":
+        noise_transform["train"] = lambda: RandomInpulseNoise(p=config.train_params)
+        noise_transform["val"] = lambda: RandomInpulseNoise(p=config.val_param)
+
     else:
-        raise NotImplementedError
+        raise NotImplementedError("Noise type unknown")
 
     batch_sizes = {"train": config.batch_size, "val": 1}
 
@@ -190,6 +196,8 @@ if config.command == "train":  # noqa: C901
 
     if config.noise_type == "textual":
         criterion = torch.nn.L1Loss()
+    if config.noise_type == "random_inpulse":
+        criterion = AnnealedL0Loss(config.epochs)
     else:
         criterion = torch.nn.MSELoss()
 

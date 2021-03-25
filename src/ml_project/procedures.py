@@ -9,6 +9,7 @@ from torch.utils.tensorboard import SummaryWriter
 from ml_project.config_parser import TIMESTAMP, directory_structure
 from ml_project.gpu_utils import GpuStats
 from ml_project.loggers import ConditionalLogger, CounterSubject, IterableSubject
+from ml_project.losses import AnnealedL0Loss
 from ml_project.utils import (
     MetricTracker,
     ProgressPrinter,
@@ -105,7 +106,10 @@ def train(  # noqa: C901
                         output = output[:, :, :original_width, :original_height]
                         target = target[:, :, :original_width, :original_height]
 
-                    loss = criterion(output, target)
+                    if isinstance(criterion, AnnealedL0Loss):
+                        loss = criterion(output, target, epoch)
+                    else:
+                        loss = criterion(output, target)
 
                     if phase == "train":
                         loss.backward()

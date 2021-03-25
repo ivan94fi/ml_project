@@ -317,6 +317,62 @@ class TextualNoise:
         self.fonts = self._read_fonts()
 
 
+class RandomInpulseNoise:
+    """
+    Custom transform to add random valued inpulse noise.
+
+    Pixels in input tensor are replaced with a random color with probability
+    p and retain their color with probability 1-p. The random color is sampled
+    uniformly from [0, 1]^3.
+
+    Parameters
+    ----------
+    p: float or tuple of float
+        A value (or range of values) in [0,1] that represents the probability
+        that a pixel value is changed.
+    """
+
+    def __init__(self, p=0.5):
+        self.p = p
+
+    def __call__(self, sample):
+        """Add random valued inpulse noise to the input sample."""
+        # Pixels values should be changed where mask is True
+        mask = torch.rand(sample.shape[1], sample.shape[2])
+        mask = mask.lt(self.p)
+
+        noise = torch.rand_like(sample, dtype=torch.float) - 0.5
+
+        # sample[i,j] = noise[i,j] if mask[i,j] else sample[i,j]
+        sample = torch.where(mask, noise, sample)
+
+        return sample
+
+    @property
+    def p(self):
+        """Sample a random p or return it if it is a number."""
+        if self.is_range:
+            return random.uniform(self._p[0], self._p[1])
+        return self._p
+
+    @p.setter
+    def p(self, value):
+        try:
+            self._p, self.is_range = _float_or_float2tuple(value)
+        except ValueError as e:
+            raise ValueError("p malformed") from e
+        if self.is_range:
+            if not 0 <= self._p[0] <= 1 or not 0 <= self._p[1] <= 1:
+                raise ValueError("p is a probability, must be in [0, 1]")
+        else:
+            if not 0 <= self._p <= 1:
+                raise ValueError("p is a probability, must be in [0, 1]")
+
+    def __repr__(self):
+        """Print an adequate representation of the class."""
+        return self.__class__.__name__ + "(p={})".format(self._p)
+
+
 class ComposeCopies(Compose):
     """Compose several transforms together, by copying them.
 
