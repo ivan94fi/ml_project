@@ -310,7 +310,7 @@ def define_parser():
     )
     train_parser.add_argument(
         "--fixed-seeds",
-        default=True,
+        default=False,
         type=strtobool,
         help="Whether to use fixed seeds for random number generators in the script",
     )
@@ -357,7 +357,7 @@ def define_parser():
     )
     train_parser.add_argument(
         "--use-external-validation",
-        default=True,
+        default=False,
         type=strtobool,
         help="Whether to use a different dataset from the training one for validation.",
     )
