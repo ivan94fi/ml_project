@@ -13,6 +13,7 @@ from ml_project.losses import AnnealedL0Loss
 from ml_project.utils import (
     MetricTracker,
     ProgressPrinter,
+    calculate_psnr,
     create_figure,
     pad,
     psnr_from_mse,
@@ -120,7 +121,12 @@ def train(  # noqa: C901
                 running_loss.update(loss.item(), batch_size)
                 iter_time = prepare_time + process_time
                 efficiency = process_time / iter_time
-                running_psnr.update(psnr_from_mse(running_loss.last_value), batch_size)
+                if isinstance(criterion, torch.nn.MSELoss):
+                    # Shortcut when using L2 loss
+                    psnr = psnr_from_mse(running_loss.last_value)
+                else:
+                    psnr = calculate_psnr(output.detach(), target.detach())
+                running_psnr.update(psnr, batch_size)
 
                 # Iteration logging
                 global_step = epoch * config.batch_numbers[phase] + batch_index
