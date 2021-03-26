@@ -242,10 +242,17 @@ def test(dataloader, network, criterion, config):
             output = output[:, :, :original_width, :original_height]
             target = target[:, :, :original_width, :original_height]
 
-            loss = criterion(output, target)
+            if isinstance(criterion, AnnealedL0Loss):
+                loss = criterion(output, target, epoch)
+            else:
+                loss = criterion(output, target)
 
         running_loss.update(loss.item(), batch_size)
-        running_psnr.update(psnr_from_mse(running_loss.last_value), batch_size)
+        if isinstance(criterion, torch.nn.MSELoss):
+            psnr = psnr_from_mse(running_loss.last_value)
+        else:
+            psnr = calculate_psnr(output.detach(), target.detach())
+        running_psnr.update(psnr, batch_size)
 
         # Iteration logging
         global_step = batch_index

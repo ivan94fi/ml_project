@@ -273,16 +273,33 @@ elif config.command == "test":
             noise_transform["test"] = lambda: WhiteGaussianNoise(std=test_param)
     elif config.noise_type == "poisson":
         noise_transform["test"] = lambda: PoissonNoise(lmbda=config.test_param)
+    elif config.noise_type == "textual":
+        noise_transform["test"] = lambda: TextualNoise(coverage=config.test_param)
+    elif config.noise_type == "random_inpulse":
+        noise_transform["test"] = lambda: RandomInpulseNoise(p=config.test_param)
+
     else:
-        raise NotImplementedError
+        raise NotImplementedError("Noise type unknown")
 
     print("Using test dataset:", config.test_dataset_root)
 
-    test_transforms = {
-        "common": ComposeCopies(ToTensor(), Lambda(lambda sample: sample - 0.5)),
-        "sample": noise_transform["test"](),
-        "target": None,
-    }
+    if config.noise_type == "textual":
+        # This noise type is applied on PIL images. Delay ToTensor after the transform
+        test_transforms = {
+            "common": None,
+            "sample": ComposeCopies(
+                noise_transform["test"](),
+                ToTensor(),
+                Lambda(lambda sample: sample - 0.5),
+            ),
+            "target": ComposeCopies(ToTensor(), Lambda(lambda sample: sample - 0.5),),
+        }
+    else:
+        test_transforms = {
+            "common": ComposeCopies(ToTensor(), Lambda(lambda sample: sample - 0.5)),
+            "sample": noise_transform["test"](),
+            "target": None,
+        }
     test_dataset = ImageFolderDataset(
         config.test_dataset_root, transforms=test_transforms
     )
@@ -306,7 +323,12 @@ elif config.command == "test":
     # Just to print the epoch used in logging
     config.starting_epoch = checkpoint["epoch"]
 
-    criterion = torch.nn.MSELoss()
+    if config.noise_type == "textual":
+        criterion = torch.nn.L1Loss()
+    if config.noise_type == "random_inpulse":
+        criterion = AnnealedL0Loss(config.epochs)
+    else:
+        criterion = torch.nn.MSELoss()
 
     test_loop_start = time.time()
     test(test_dataloader, net, criterion, config)
