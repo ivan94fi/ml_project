@@ -436,7 +436,6 @@ def define_parser():
     noise_group = train_parser.add_argument_group("Noise settings")
     noise_group.add_argument(
         "--train-params",
-        default=(0.0, 50.0),
         nargs=2,
         type=float,
         metavar=("LOWER", "UPPER"),
@@ -444,13 +443,13 @@ def define_parser():
         help="The range of the noise parameter values for training. For gaussian "
         "noise it is the standard deviation, for Poisson it is the rate. NOTE: "
         "the scale for gaussian noise std is [0, 255], then internally converted to "
-        "[0, 1].",
+        "[0, 1]." + default_noise_params_help("train"),
     )
     noise_group.add_argument(
         "--val-param",
         type=float,
         help="The noise parameter for validation. For gaussian noise, specify a "
-        "value in [0, 255].",
+        "value in [0, 255]." + default_noise_params_help("val"),
     )
 
     test_parser = subparsers.add_parser(
@@ -480,29 +479,46 @@ def define_parser():
         "--test-param",
         type=float,
         help="The noise parameter for validation. For gaussian noise, specify a "
-        "value in [0, 255].",
+        "value in [0, 255]." + default_noise_params_help("test"),
     )
 
     return main_parser
 
 
-default_noise_values = {
-    "gaussian": 25,
-    "poisson": 30,
-    "textual": 0.25,
-    "random_inpulse": 0.25,
+default_noise_params = {
+    "gaussian": {"train": (0.0, 50), "val": 25, "test": 25},
+    "poisson": {"train": (0.0, 50), "val": 30, "test": 30},
+    "textual": {"train": (0.0, 0.5), "val": 0.25, "test": 0.25},
+    "random_inpulse": {"train": (0.0, 0.95), "val": 0.7, "test": 0.7},
 }
 
 
-def _default_noise_param(noise_type, phase):
+def default_noise_params_help(phase):
+    """Generate help text with default values for noise params."""
+    info_str = " If not given, the following defaults are used: "
+    # params_dict = _default_noise_params_t[phase]
+    params_gen = (
+        (k.replace("_", " ").capitalize(), v[phase])
+        for k, v in default_noise_params.items()
+    )
+    params_str = ", ".join(
+        ["{} {}".format(noise_name, value) for noise_name, value in params_gen]
+    )
+    return info_str + params_str
+
+
+def override_noise_params(noise_type, phase):
+    """Provide appropriate default noise params when not passed from cli."""
     try:
-        param_value = default_noise_values[noise_type]
+        current_noise_params = default_noise_params[noise_type]
     except KeyError as e:
         raise ValueError("Noise type unknown") from e
-    fmt_str = "{} param not passed. Overriding with default {}"
-    print(fmt_str.format(phase.capitalize(), param_value))
+    param = current_noise_params[phase]
 
-    return param_value
+    fmt_str = "{} param not passed. Overriding with default {} for noise type {}"
+    print(fmt_str.format(phase.capitalize(), param, noise_type))
+
+    return param
 
 
 def validate_config(config):  # noqa: C901
@@ -514,8 +530,11 @@ def validate_config(config):  # noqa: C901
 
     if config.command == "train":
 
+        if config.train_params is None:
+            config.train_params = override_noise_params(config.noise_type, "train")
+
         if config.val_param is None:
-            config.val_param = _default_noise_param(config.noise_type, "val")
+            config.val_param = override_noise_params(config.noise_type, "val")
 
         if config.dataset_root is None:
             config.dataset_root = read_directory_from_env(ENV_VAR_DATASET_ROOT)
@@ -577,7 +596,7 @@ def validate_config(config):  # noqa: C901
                 setattr(config, key, train_config[key])
 
         if config.test_param is None:
-            config.test_param = _default_noise_param(config.noise_type, "test")
+            config.test_param = override_noise_params(config.noise_type, "test")
 
         if config.test_dataset_root is None:
             config.test_dataset_root = read_directory_from_env(
