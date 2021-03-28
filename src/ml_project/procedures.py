@@ -46,7 +46,7 @@ def train(  # noqa: C901
         print("Dry run. Not executing training")
         return
 
-    writer = SummaryWriter(directory_structure.CURRENT_TB_RUN)
+    writer = SummaryWriter(directory_structure.CURRENT_EXP_PATH)
     progress_printer = ProgressPrinter(
         config, progress_template="Loss: {:.3f} - PSNR: {:.3f}"
     )

@@ -6,7 +6,6 @@ import json
 import os
 import re
 import shutil
-import socket
 import warnings
 from datetime import datetime
 
@@ -37,11 +36,8 @@ class directory_structure:
             <TIMESTAMP1>
                 checkpoints
                 run_config.json
+                <tb_events_file>
             <TIMESTAMP2>
-            ...
-        runs
-            <TIMESTAMP1>_host
-            <TIMESTAMP2>_host
             ...
         test_runs
             test_<TRAIN_TIMESTAMP1>
@@ -69,12 +65,8 @@ class directory_structure:
     CHECKPOINTS_PATH = None
     RUN_CONFIG_PATH = None
 
-    # Tensorboard runs: kept separate for better visualization
-    RUNS_PATH = None
+    # Test tensorboard runs
     TEST_RUNS_PATH = None
-
-    # The name of the current tensorboard run
-    CURRENT_TB_RUN = None
 
     @classmethod
     def update(cls, _root_dir):
@@ -88,12 +80,7 @@ class directory_structure:
         cls.CHECKPOINTS_PATH = os.path.join(cls.CURRENT_EXP_PATH, "checkpoints")
         cls.RUN_CONFIG_PATH = os.path.join(cls.CURRENT_EXP_PATH, "run_config.json")
 
-        cls.RUNS_PATH = os.path.join(cls.ROOT_DIR, "runs")
         cls.TEST_RUNS_PATH = os.path.join(cls.ROOT_DIR, "test_runs")
-
-        cls.CURRENT_TB_RUN = os.path.join(
-            cls.RUNS_PATH, TIMESTAMP + "_" + socket.gethostname()
-        )
 
     @classmethod
     def create(cls):
@@ -106,10 +93,6 @@ class directory_structure:
             os.mkdir(cls.CURRENT_EXP_PATH)
         if not os.path.isdir(cls.CHECKPOINTS_PATH):
             os.mkdir(cls.CHECKPOINTS_PATH)
-        if not os.path.isdir(cls.RUNS_PATH):
-            os.mkdir(cls.RUNS_PATH)
-        if not os.path.isdir(cls.CURRENT_TB_RUN):
-            os.mkdir(cls.CURRENT_TB_RUN)
         if not os.path.isdir(cls.TEST_RUNS_PATH):
             os.mkdir(cls.TEST_RUNS_PATH)
 
