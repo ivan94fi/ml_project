@@ -7,8 +7,9 @@ import torch
 from torch.utils.data import DataLoader
 
 from ml_project.config_parser import (
+    check_directory_structure,
     define_parser,
-    parse_config,
+    get_config,
     save_config_file,
     tabulate_config,
 )
@@ -26,7 +27,9 @@ from ml_project.utils import get_lr_dampening_factor, set_external_seeds
 complete_start = time.time()
 
 parser = define_parser()
-config = parse_config(parser)
+config = get_config(parser)
+
+check_directory_structure(config)
 
 print("Selected configuration")
 print("=" * 60)

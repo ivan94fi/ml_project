@@ -114,7 +114,8 @@ class directory_structure:
             os.mkdir(cls.TEST_RUNS_PATH)
 
 
-directory_structure.update(os.path.dirname(os.path.realpath(__file__)))
+DEFAULT_ROOT_DIR = os.path.dirname(os.path.realpath(__file__))
+directory_structure.update(DEFAULT_ROOT_DIR)
 
 
 def strtobool(val):
@@ -512,13 +513,8 @@ def override_noise_params(noise_type, phase):
     return param
 
 
-def validate_config(config):  # noqa: C901
+def validate_config(config):
     """Perform additional checks on the configuration."""
-    if config.root_dir != directory_structure.ROOT_DIR:
-        directory_structure.update(config.root_dir)
-
-    directory_structure.create()
-
     if config.command == "train":
 
         if config.train_params is None:
@@ -543,14 +539,33 @@ def validate_config(config):  # noqa: C901
         if not os.path.isfile(config.test_checkpoint):
             raise ValueError("The checkpoint path is invalid.")
 
+        if config.test_param is None:
+            config.test_param = override_noise_params(config.noise_type, "test")
+
+        if config.test_dataset_root is None:
+            config.test_dataset_root = read_directory_from_env(
+                ENV_VAR_TEST_DATASET_ROOT
+            )
+            print("Test dataset root picked from environment variable")
+
+    return config
+
+
+def check_directory_structure(config):
+    """Ensure that the right directory structure is used."""
+    if config.root_dir != directory_structure.ROOT_DIR:
+        directory_structure.update(config.root_dir)
+
+    directory_structure.create()
+
+    if config.command == "test":
+
         checkpoint_name = os.path.basename(config.test_checkpoint).replace(".pt", "")
-        print("checkpoint_name", checkpoint_name)
 
         # All the tests for this train run will reside in this directory
         test_base_dir = os.path.join(
             directory_structure.TEST_RUNS_PATH, "test_" + checkpoint_name
         )
-        print("test_base_dir", test_base_dir)
         if not os.path.isdir(test_base_dir):
             os.mkdir(test_base_dir)
 
@@ -564,12 +579,11 @@ def validate_config(config):  # noqa: C901
 
         # Get the directory of the experiment for the given checkpoint
         experiment_dir = os.path.dirname(os.path.dirname(config.test_checkpoint))
-        print("experiment_dir", experiment_dir)
         # This is the configuration used to train the checkpoint to test
         train_config_path = os.path.join(experiment_dir, "run_config.json")
         train_config = read_config_file(train_config_path)
 
-        # Make a copy of the train configuration in the current test directory\
+        # Make a copy of the train configuration in the current test directory
         shutil.copy(
             train_config_path, os.path.join(current_test_run_path, "train_config.json")
         )
@@ -586,20 +600,11 @@ def validate_config(config):  # noqa: C901
                 )
                 setattr(config, key, train_config[key])
 
-        if config.test_param is None:
-            config.test_param = override_noise_params(config.noise_type, "test")
-
-        if config.test_dataset_root is None:
-            config.test_dataset_root = read_directory_from_env(
-                ENV_VAR_TEST_DATASET_ROOT
-            )
-            print("Test dataset root picked from environment variable")
-
     return config
 
 
-def parse_config(main_parser, args=None):
-    """Parse the configuration for the execution.
+def get_config(main_parser, args=None):
+    """Parse the configuration for the execution and validate it.
 
     Parameters
     ----------
@@ -644,5 +649,5 @@ def read_config_file(config_path=None):
 
 if __name__ == "__main__":
 
-    configs = parse_config(define_parser())
+    configs = get_config(define_parser())
     print(tabulate_config(configs))
