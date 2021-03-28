@@ -322,9 +322,7 @@ def define_parser():
         "--epochs",
         default=2,
         type=int,
-        help="Total number of epochs for the training procedure. If a starting epoch "
-        "is passed, epochs 1 to starting_epoch-1 are considered already done and are "
-        "skipped",
+        help="Total number of epochs for the training procedure.",
     )
     train_parser.add_argument(
         "-b",
@@ -424,13 +422,6 @@ def define_parser():
         metavar="INT",
         help="Save a checkpoint of the state of network and optimizer every INT "
         "epochs. Pass an empty string (--checkpoint-interval='') to disable",
-    )
-    checkpoint_group.add_argument(
-        "--starting-epoch",
-        default=1,
-        type=_check_gt_zero,
-        help="Start training from this epoch (must be >= 1). Epochs in interval "
-        "[1, STARTING_EPOCH-1] are skipped. Used to restart train from a checkpoint",
     )
 
     noise_group = train_parser.add_argument_group("Noise settings")

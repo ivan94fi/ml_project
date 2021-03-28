@@ -127,23 +127,13 @@ if config.command == "train":  # noqa: C901
     else:
         raise ValueError("Scheduling method not supported")
 
+    config.starting_epoch = 1
     if config.start_from_checkpoint is not None:
         print("Restore checkpoint " + config.start_from_checkpoint)
         checkpoint = torch.load(config.start_from_checkpoint)
         net.load_state_dict(checkpoint["net"])
         optimizer.load_state_dict(checkpoint["opt"])
         lr_scheduler.load_state_dict(checkpoint["sched"])
-        print("Overriding starting epoch value with the one found in the checkpoint")
-        if config.starting_epoch != 1:
-            # a starting epoch is passed from cli: check that it matches the one in
-            # checkpoint
-            if config.starting_epoch != checkpoint["epoch"]:
-                raise ValueError(
-                    "Mismatch between epochs in checkpoint "
-                    "and command line argument: got {} and {}.".format(
-                        checkpoint["epoch"], config.starting_epoch
-                    )
-                )
         config.starting_epoch = checkpoint["epoch"] + 1
 
     dataloaders = {"train": dataloader, "val": validation_dataloader}
