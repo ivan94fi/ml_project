@@ -33,6 +33,14 @@ def _float_or_float2tuple(param):
     return param, is_range
 
 
+def no_op_transform(img):
+    """No operation transform.
+
+    Returns the input as is.
+    """
+    return img
+
+
 class ResizeIfTooSmall:
     """
     Custom transformation implementing resize logic for small images.

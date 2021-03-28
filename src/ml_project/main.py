@@ -5,7 +5,6 @@ from functools import partial
 
 import torch
 from torch.utils.data import DataLoader
-from torchvision.transforms import Lambda, RandomCrop, ToTensor
 
 from ml_project.config_parser import (
     define_parser,
@@ -17,14 +16,10 @@ from ml_project.datasets import ImageFolderDataset
 from ml_project.losses import AnnealedL0Loss
 from ml_project.models import UNet
 from ml_project.procedures import test, train
-from ml_project.transforms import (
-    BrownGaussianNoise,
-    ComposeCopies,
-    PoissonNoise,
-    RandomInpulseNoise,
-    ResizeIfTooSmall,
-    TextualNoise,
-    WhiteGaussianNoise,
+from ml_project.transforms_factories import (
+    ExternalValidationTransformCreator,
+    NoiseTransformCreator,
+    TransformCreator,
 )
 from ml_project.utils import get_lr_dampening_factor, set_external_seeds
 
@@ -38,6 +33,7 @@ print("=" * 60)
 print(tabulate_config(config))
 print("=" * 60)
 
+noise_transform_creator = NoiseTransformCreator(config)
 
 if config.command == "train":  # noqa: C901
     if config.fixed_seeds:
@@ -49,67 +45,13 @@ if config.command == "train":  # noqa: C901
 
     save_config_file(config)
 
-    noise_transform = {}
-    if config.noise_type == "gaussian":
-        train_params = tuple(val / 255.0 for val in config.train_params)
-        val_param = config.val_param / 255.0
-        if config.brown_gaussian_std is not None:
-            noise_transform["train"] = lambda: BrownGaussianNoise(
-                kernel_std=config.brown_gaussian_std, std=train_params
-            )
-            noise_transform["val"] = lambda: BrownGaussianNoise(
-                kernel_std=config.brown_gaussian_std, std=val_param
-            )
-        else:
-            noise_transform["train"] = lambda: WhiteGaussianNoise(std=train_params)
-            noise_transform["val"] = lambda: WhiteGaussianNoise(std=val_param)
-    elif config.noise_type == "poisson":
-        noise_transform["train"] = lambda: PoissonNoise(lmbda=config.train_params)
-        noise_transform["val"] = lambda: PoissonNoise(lmbda=config.val_param)
-    elif config.noise_type == "textual":
-        noise_transform["train"] = lambda: TextualNoise(coverage=config.train_params)
-        noise_transform["val"] = lambda: TextualNoise(coverage=config.val_param)
-    elif config.noise_type == "random_inpulse":
-        noise_transform["train"] = lambda: RandomInpulseNoise(p=config.train_params)
-        noise_transform["val"] = lambda: RandomInpulseNoise(p=config.val_param)
-
+    if config.use_external_validation:
+        transforms_creator = ExternalValidationTransformCreator(config)
     else:
-        raise NotImplementedError("Noise type unknown")
+        transforms_creator = TransformCreator(config)
 
-    batch_sizes = {"train": config.batch_size, "val": 1}
-
-    if config.train_mode == "n2n":
-        target_noise = noise_transform["train"]()
-    else:
-        target_noise = lambda img: img  # noqa
-
-    if config.noise_type == "textual":
-        # This noise type is applied on PIL images. Delay ToTensor after the transform
-        transforms = {
-            "common": ComposeCopies(
-                ResizeIfTooSmall(size=config.input_size, stretch=config.stretch),
-                RandomCrop(size=config.input_size),
-            ),
-            "sample": ComposeCopies(
-                noise_transform["train"](),
-                ToTensor(),
-                Lambda(lambda sample: sample - 0.5),
-            ),
-            "target": ComposeCopies(
-                target_noise, ToTensor(), Lambda(lambda sample: sample - 0.5),
-            ),
-        }
-    else:
-        transforms = {
-            "common": ComposeCopies(
-                ResizeIfTooSmall(size=config.input_size, stretch=config.stretch),
-                RandomCrop(size=config.input_size),
-                ToTensor(),
-                Lambda(lambda sample: sample - 0.5),  # move the tensors in [-0.5, 0.5]
-            ),
-            "sample": ComposeCopies(noise_transform["train"]()),
-            "target": target_noise,
-        }
+    noise_transform = noise_transform_creator.create()
+    transforms, val_transforms = transforms_creator.create(noise_transform)
 
     print("Dataset root:", config.dataset_root)
     full_dataset = ImageFolderDataset(config.dataset_root, transforms=transforms)
@@ -119,53 +61,15 @@ if config.command == "train":  # noqa: C901
         print("Using external validation dataset:", config.val_dataset_root)
 
         train_dataset = dataset
-        if config.noise_type == "textual":
-            val_transforms = {
-                "common": None,
-                "sample": ComposeCopies(
-                    noise_transform["val"](),
-                    ToTensor(),
-                    Lambda(lambda sample: sample - 0.5),
-                ),
-                "target": ComposeCopies(
-                    ToTensor(), Lambda(lambda sample: sample - 0.5)
-                ),
-            }
-        else:
-            val_transforms = {
-                "common": ComposeCopies(
-                    ToTensor(), Lambda(lambda sample: sample - 0.5)
-                ),
-                "sample": noise_transform["val"](),
-                "target": None,
-            }
         validation_dataset = ImageFolderDataset(
             config.val_dataset_root, transforms=val_transforms
         )
     else:
-        if config.noise_type == "textual":
-            val_transforms = {
-                "common": ComposeCopies(transforms["common"]),
-                "sample": ComposeCopies(
-                    noise_transform["val"](),
-                    ToTensor(),
-                    Lambda(lambda sample: sample - 0.5),
-                ),
-                "target": ComposeCopies(
-                    ToTensor(), Lambda(lambda sample: sample - 0.5)
-                ),
-            }
-        else:
-            val_transforms = {
-                "common": ComposeCopies(transforms["common"]),
-                "sample": noise_transform["val"](),
-                "target": None,
-            }
-
         train_dataset, validation_dataset = dataset.split_train_validation(
             train_percentage=config.train_percentage, val_transforms=val_transforms
         )
 
+    batch_sizes = {"train": config.batch_size, "val": 1}
     config.dataset_sizes = {"train": len(train_dataset), "val": len(validation_dataset)}
     config.batch_numbers = {
         phase: math.ceil(size / batch_sizes[phase])
@@ -260,46 +164,14 @@ if config.command == "train":  # noqa: C901
 elif config.command == "test":
     print("Restore checkpoint " + config.test_checkpoint)
     checkpoint = torch.load(config.test_checkpoint)
+
     print("Epoch from checkpoint: {}".format(checkpoint["epoch"]))
-
-    noise_transform = {}
-    if config.noise_type == "gaussian":
-        test_param = config.test_param / 255.0
-        if config.brown_gaussian_std is not None:
-            noise_transform["test"] = lambda: BrownGaussianNoise(
-                kernel_std=config.brown_gaussian_std, std=test_param
-            )
-        else:
-            noise_transform["test"] = lambda: WhiteGaussianNoise(std=test_param)
-    elif config.noise_type == "poisson":
-        noise_transform["test"] = lambda: PoissonNoise(lmbda=config.test_param)
-    elif config.noise_type == "textual":
-        noise_transform["test"] = lambda: TextualNoise(coverage=config.test_param)
-    elif config.noise_type == "random_inpulse":
-        noise_transform["test"] = lambda: RandomInpulseNoise(p=config.test_param)
-
-    else:
-        raise NotImplementedError("Noise type unknown")
-
     print("Using test dataset:", config.test_dataset_root)
 
-    if config.noise_type == "textual":
-        # This noise type is applied on PIL images. Delay ToTensor after the transform
-        test_transforms = {
-            "common": None,
-            "sample": ComposeCopies(
-                noise_transform["test"](),
-                ToTensor(),
-                Lambda(lambda sample: sample - 0.5),
-            ),
-            "target": ComposeCopies(ToTensor(), Lambda(lambda sample: sample - 0.5),),
-        }
-    else:
-        test_transforms = {
-            "common": ComposeCopies(ToTensor(), Lambda(lambda sample: sample - 0.5)),
-            "sample": noise_transform["test"](),
-            "target": None,
-        }
+    transforms_creator = TransformCreator(config)
+    noise_transform = noise_transform_creator.create()
+    test_transforms = transforms_creator.create(noise_transform)
+
     test_dataset = ImageFolderDataset(
         config.test_dataset_root, transforms=test_transforms
     )
