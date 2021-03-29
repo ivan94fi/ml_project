@@ -249,15 +249,6 @@ def define_parser():
         help="Print metrics during training every INT batches",
     )
     main_parser.add_argument(
-        "--log-images",
-        default=None,
-        type=lambda v: int(v) if v else None,
-        metavar="INT",
-        help="If supplied, log the current sample, target and output images to "
-        "tensorboard every INT batches during training. Pass an empty string "
-        "(--log-images='') to disable",
-    )
-    main_parser.add_argument(
         "-d",
         "--dry-run",
         action="store_true",
@@ -403,6 +394,15 @@ def define_parser():
         type=str,
         help="Train mode: 'n2n' to use corrupted samples and target;"
         "'n2c' to use corrupted samples and clean targets",
+    )
+    train_parser.add_argument(
+        "--log-images",
+        default=None,
+        type=lambda v: int(v) if v else None,
+        metavar="INT",
+        help="If supplied, log the current sample, target and output images to "
+        "tensorboard every INT batches during training. Pass an empty string "
+        "(--log-images='') to disable",
     )
     train_parser.add_argument(
         "--log-other-metrics",

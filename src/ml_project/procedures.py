@@ -1,7 +1,6 @@
 # pylint: disable=R0912,R0913,R0914,R0915,W0212
 """Functions that define train/test procedures."""
 import os
-import tempfile
 import time
 
 import torch
@@ -18,6 +17,7 @@ from ml_project.utils import (
     create_figure,
     pad,
     psnr_from_mse,
+    save_figure,
 )
 
 
@@ -215,22 +215,17 @@ def test(dataloader, network, criterion, config):
     phase = "test"
     epoch = config.starting_epoch
 
-    # FIXME: temporary solution. Tensorboard logging in test will be removed
-    writer = SummaryWriter(log_dir=tempfile.mkdtemp())
     progress_printer = ProgressPrinter(
         config, progress_template="Loss: {:.3f} - PSNR: {:.3f}"
     )
     progress_printer.reset(phase)
-
-    iterations = CounterSubject()
-    image_logger = ConditionalLogger({"step": iterations}, config.log_images)
 
     network.eval()
 
     running_loss = MetricTracker()
     running_psnr = MetricTracker()
 
-    for batch_index, data in enumerate(iterations.iter(dataloader)):
+    for batch_index, data in enumerate(dataloader):
         original_width = data.sample.shape[2]
         original_height = data.sample.shape[3]
         data = pad(data)
@@ -240,7 +235,7 @@ def test(dataloader, network, criterion, config):
 
         progress_printer.update_batch_info(batch_size, batch_index)
 
-        with torch.set_grad_enabled(False):
+        with torch.no_grad():
             output = network(sample)
 
             output = output[:, :, :original_width, :original_height]
@@ -259,11 +254,11 @@ def test(dataloader, network, criterion, config):
         running_psnr.update(psnr, batch_size)
 
         # Iteration logging
-        global_step = batch_index
-        if image_logger.should_log():
-            tensors = [data.sample, data.target, output]
-            fig = create_figure(tensors, title="epoch:" + str(epoch))
-            writer.add_figure("input-target-output/" + phase, fig, global_step)
+        fig = create_figure([data.sample, data.target, output], transposed=True)
+        path = os.path.join(
+            directory_structure.TEST_IMAGES_DIR, "img_" + str(batch_index) + ".jpg"
+        )
+        save_figure(fig, path)
 
         progress_printer.show_epoch_progress(
             running_loss.last_value, running_psnr.last_value
@@ -280,13 +275,9 @@ def test(dataloader, network, criterion, config):
             phase.capitalize(), epoch_loss, epoch_psnr
         )
     )
-    writer.add_scalar("Metrics/Loss/" + phase, epoch_loss)
-    writer.add_scalar("Metrics/PSNR/" + phase, epoch_psnr)
     save_dict(
         {"param": config.test_param, "loss": epoch_loss, "psnr": epoch_psnr},
         os.path.join(directory_structure.CURRENT_TEST_EXP_PATH, "results.json"),
     )
 
     print()
-
-    writer.close()

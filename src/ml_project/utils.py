@@ -153,14 +153,17 @@ def get_gaussian_kernel(stddev, dimensions=1, size=None, limit=4):
     return kernel / kernel.sum()
 
 
-def create_figure(images, title=None):
+def create_figure(images, title=None, transposed=False):
     """
     Create a matplotlib figure with the passed batches of tensor images.
 
     The input tensors are copied, each batch is flattened, then the images
     obtained are plotted in column in a matplotlib figure.
     """
-    fig, axes = plt.subplots(len(images), 1)
+    if transposed:
+        fig, axes = plt.subplots(1, len(images))
+    else:
+        fig, axes = plt.subplots(len(images), 1)
     with torch.set_grad_enabled(False):
         for axis, image in zip(axes, images):
             image = prepare_for_imshow(make_grid(image.detach().clone().cpu()), 0.5)
@@ -175,6 +178,11 @@ def create_figure(images, title=None):
         bbox={"facecolor": "white", "alpha": 0.5, "pad": 5},
     )
     return fig
+
+
+def save_figure(fig, path):
+    """Save a matplotlib figure with some default parameters."""
+    fig.savefig(path, transparent=True, bbox_inches="tight", pad_inches=0)
 
 
 class MetricTracker:
