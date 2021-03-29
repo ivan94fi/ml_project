@@ -9,8 +9,9 @@ from torch.utils.data import DataLoader
 from ml_project.config_parser import (
     check_directory_structure,
     define_parser,
+    directory_structure,
     get_config,
-    save_config_file,
+    save_dict,
     tabulate_config,
 )
 from ml_project.datasets import ImageFolderDataset
@@ -46,7 +47,7 @@ if config.command == "train":  # noqa: C901
         torch.backends.cudnn.benchmark = False
         set_external_seeds()
 
-    save_config_file(config)
+    save_dict(config, directory_structure.RUN_CONFIG_PATH)
 
     if config.use_external_validation:
         transforms_creator = ExternalValidationTransformCreator(config)

@@ -564,7 +564,7 @@ def check_directory_structure(config):
         experiment_dir = os.path.dirname(os.path.dirname(config.test_checkpoint))
         # This is the configuration used to train the checkpoint to test
         train_config_path = os.path.join(experiment_dir, "run_config.json")
-        train_config = read_config_file(train_config_path)
+        train_config = read_dict(train_config_path)
 
         # Make a copy of the train configuration in the current test directory
         shutil.copy(
@@ -609,25 +609,22 @@ def get_config(main_parser, args=None):
     return parsed_args
 
 
-def save_config_file(config, path=None):
-    """Save the configuration to the experiment directory."""
-    if path is None:
-        path = directory_structure.RUN_CONFIG_PATH
+def save_dict(obj, path):
+    """Save object as a dictionary in a json file."""
+    try:
+        dictionary = vars(obj)
+    except TypeError:
+        dictionary = obj.copy()  # obj is already a dict, copy it.
     with open(path, "w") as f:
-        json.dump(vars(config), f, sort_keys=True, indent=4)
+        json.dump(dictionary, f, sort_keys=True, indent=4)
 
 
-def read_config_file(config_path=None):
-    """Read the specified configuration file.
+def read_dict(path):
+    """Read the specified json file as a dict."""
+    with open(path, "r") as f:
+        obj = json.load(f)
 
-    Defaults to the current experiment file.
-    """
-    if config_path is None:
-        config_path = directory_structure.RUN_CONFIG_PATH
-    with open(config_path, "r") as f:
-        config = json.load(f)
-
-    return config
+    return obj
 
 
 if __name__ == "__main__":
