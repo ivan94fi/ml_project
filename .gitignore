@@ -1,8 +1,5 @@
-mlruns
 results
-runs
-test_runs
-checkpoints
+test_results
 /data/
 TODO
 
