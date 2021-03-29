@@ -9,6 +9,7 @@ import shutil
 import warnings
 from datetime import datetime
 
+import torch
 from tabulate import tabulate
 
 from ml_project.datasets import (
@@ -39,16 +40,18 @@ class directory_structure:
                 <tb_events_file>
             <TIMESTAMP2>
             ...
-        test_runs
+        test_results
             test_<TRAIN_TIMESTAMP1>
+                train_config.json
                 <TIMESTAMP1>
-                    events
-                    train_config.json
-                <TIMESTAMP1>
-                    events
-                    train_config.json
+                    test_config.json
+                    results.json
+                    test_images
+                <TIMESTAMP2>
+                    test_config.json
+                    results.json
+                    test_images
             ...
-
     """
 
     # The root of all produced artifacts: defaults to this file's directory.
@@ -65,8 +68,12 @@ class directory_structure:
     CHECKPOINTS_PATH = None
     RUN_CONFIG_PATH = None
 
-    # Test tensorboard runs
-    TEST_RUNS_PATH = None
+    # Test results path
+    TEST_RESULTS_PATH = None
+    TEST_BASE_DIR = None
+    CURRENT_TEST_EXP_PATH = None
+    TEST_IMAGES_DIR = None
+    TEST_CONFIG_PATH = None
 
     @classmethod
     def update(cls, _root_dir):
@@ -80,10 +87,10 @@ class directory_structure:
         cls.CHECKPOINTS_PATH = os.path.join(cls.CURRENT_EXP_PATH, "checkpoints")
         cls.RUN_CONFIG_PATH = os.path.join(cls.CURRENT_EXP_PATH, "run_config.json")
 
-        cls.TEST_RUNS_PATH = os.path.join(cls.ROOT_DIR, "test_runs")
+        cls.TEST_RESULTS_PATH = os.path.join(cls.ROOT_DIR, "test_results")
 
     @classmethod
-    def create(cls):
+    def create_tree(cls):
         """Create the directory tree."""
         if not os.path.isdir(cls.ROOT_DIR):
             os.mkdir(cls.ROOT_DIR)
@@ -93,8 +100,30 @@ class directory_structure:
             os.mkdir(cls.CURRENT_EXP_PATH)
         if not os.path.isdir(cls.CHECKPOINTS_PATH):
             os.mkdir(cls.CHECKPOINTS_PATH)
-        if not os.path.isdir(cls.TEST_RUNS_PATH):
-            os.mkdir(cls.TEST_RUNS_PATH)
+
+    @classmethod
+    def create_test_tree(cls, train_timestamp):
+        """Create test directory tree."""
+        if not os.path.isdir(cls.TEST_RESULTS_PATH):
+            os.mkdir(cls.TEST_RESULTS_PATH)
+
+        # All the tests for this train run will reside in this directory
+        cls.TEST_BASE_DIR = os.path.join(
+            cls.TEST_RESULTS_PATH, "test_" + train_timestamp
+        )
+        if not os.path.isdir(cls.TEST_BASE_DIR):
+            os.mkdir(cls.TEST_BASE_DIR)
+
+        # This is the directory for the current run of tests
+        cls.CURRENT_TEST_EXP_PATH = os.path.join(cls.TEST_BASE_DIR, TIMESTAMP)
+        os.mkdir(cls.CURRENT_TEST_EXP_PATH)
+
+        cls.TEST_IMAGES_DIR = os.path.join(cls.CURRENT_TEST_EXP_PATH, "test_images")
+        os.mkdir(cls.TEST_IMAGES_DIR)
+
+        cls.TEST_CONFIG_PATH = os.path.join(
+            cls.CURRENT_TEST_EXP_PATH, "test_config.json"
+        )
 
 
 DEFAULT_ROOT_DIR = os.path.dirname(os.path.realpath(__file__))
@@ -439,6 +468,14 @@ def define_parser():
         metavar="CHECKPOINT_PATH",
         help="Load a checkpoint file to test.",
     )
+    checkpoint_group.add_argument(
+        "--train-config",
+        type=normalize_path,
+        metavar="CONFIG",
+        help="Path of the configuration file used during training. This should "
+        "not normally be given as the checkpoint should contain the needed train "
+        "configuration.",
+    )
 
     test_parser.add_argument(
         "--test-dataset-root",
@@ -517,6 +554,7 @@ def validate_config(config):
                 )
             print("Validation dataset root picked from environment variable")
 
+        config.timestamp = TIMESTAMP
     elif config.command == "test":
 
         if not os.path.isfile(config.test_checkpoint):
@@ -539,51 +577,84 @@ def check_directory_structure(config):
     if config.root_dir != directory_structure.ROOT_DIR:
         directory_structure.update(config.root_dir)
 
-    directory_structure.create()
+    if config.command == "train":
+        directory_structure.create_tree()
 
     if config.command == "test":
 
-        checkpoint_name = os.path.basename(config.test_checkpoint).replace(".pt", "")
+        checkpoint = torch.load(config.test_checkpoint, map_location="cpu")
 
-        # All the tests for this train run will reside in this directory
-        test_base_dir = os.path.join(
-            directory_structure.TEST_RUNS_PATH, "test_" + checkpoint_name
+        try:
+            train_config = checkpoint["config"]
+        except KeyError as e:
+            if config.train_config is None:
+                raise ValueError(
+                    "Unable to load the training configuration for this checkpoint. "
+                    "Either specify the right file in the command or use a checkpoint "
+                    " with a 'config' field."
+                ) from e
+            train_config = read_dict(config.train_config)
+
+        directory_structure.create_test_tree(train_config["timestamp"])
+
+        train_config_file = os.path.join(
+            directory_structure.TEST_BASE_DIR, "train_config.json"
         )
-        if not os.path.isdir(test_base_dir):
-            os.mkdir(test_base_dir)
+        if os.path.isfile(train_config_file):
+            existent_train_config = read_dict(train_config_file)
+            existent_train_config["train_params"] = tuple(
+                existent_train_config["train_params"]
+            )
+            if train_config != existent_train_config:
+                raise ValueError("Configurations not matching.")
+        else:
+            save_dict(train_config, path=train_config_file)
 
-        # This is the directory for the current run of tests
-        current_test_run_path = os.path.join(test_base_dir, TIMESTAMP)
-        os.mkdir(current_test_run_path)
-        # This is used by tensorboard for its artifacts
-        test_log_dir = os.path.join(current_test_run_path, "events")
-        os.mkdir(test_log_dir)
-        config.test_log_dir = test_log_dir
+        save_dict(config, directory_structure.TEST_CONFIG_PATH)
 
-        # Get the directory of the experiment for the given checkpoint
-        experiment_dir = os.path.dirname(os.path.dirname(config.test_checkpoint))
-        # This is the configuration used to train the checkpoint to test
-        train_config_path = os.path.join(experiment_dir, "run_config.json")
-        train_config = read_dict(train_config_path)
+        _remove_previous_test_runs(config)
 
-        # Make a copy of the train configuration in the current test directory
-        shutil.copy(
-            train_config_path, os.path.join(current_test_run_path, "train_config.json")
-        )
-
-        test_config = vars(config)
-
-        for key in ["brown_gaussian_std", "noise_type"]:
-            if train_config[key] != test_config[key]:
-                warnings.warn(
-                    "Overriding {}='{}' with the value '{}', "
-                    "used for training the checkpoint.".format(
-                        key, test_config[key], train_config[key]
-                    )
-                )
-                setattr(config, key, train_config[key])
+        config = _override_train_config(config, train_config)
 
     return config
+
+
+def _remove_previous_test_runs(config):
+    previous_runs = filter(
+        lambda d: os.path.isdir(d) and d != directory_structure.CURRENT_TEST_EXP_PATH,
+        map(
+            lambda p: os.path.join(directory_structure.TEST_BASE_DIR, p),
+            os.listdir(directory_structure.TEST_BASE_DIR),
+        ),
+    )
+    for previous_run in previous_runs:
+        # Remove runs with the same test configs
+        try:
+            previous_test_config = read_dict(
+                os.path.join(previous_run, "test_config.json")
+            )
+        except FileNotFoundError:
+            continue
+        if previous_test_config == vars(config):
+            try:
+                shutil.rmtree(previous_run)
+            except OSError:
+                print("Cannot remove previous run")
+
+
+def _override_train_config(test_config, train_config):
+    """Override test config with train where appropriate."""
+    for key in ["brown_gaussian_std", "noise_type"]:
+        if train_config[key] != getattr(test_config, key):
+            warnings.warn(
+                "Overriding {}='{}' with the value '{}', "
+                "used for training the checkpoint.".format(
+                    key, test_config[key], train_config[key]
+                )
+            )
+            setattr(test_config, key, train_config[key])
+
+    return test_config
 
 
 def get_config(main_parser, args=None):

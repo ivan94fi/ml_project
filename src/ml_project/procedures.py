@@ -1,12 +1,13 @@
 # pylint: disable=R0912,R0913,R0914,R0915,W0212
 """Functions that define train/test procedures."""
 import os
+import tempfile
 import time
 
 import torch
 from torch.utils.tensorboard import SummaryWriter
 
-from ml_project.config_parser import TIMESTAMP, directory_structure
+from ml_project.config_parser import TIMESTAMP, directory_structure, save_dict
 from ml_project.gpu_utils import GpuStats
 from ml_project.loggers import ConditionalLogger, CounterSubject, IterableSubject
 from ml_project.losses import AnnealedL0Loss
@@ -181,6 +182,8 @@ def train(  # noqa: C901
                 "net": network.state_dict(),
                 "opt": optimizer.state_dict(),
                 "sched": lr_scheduler.state_dict(),
+                "config": vars(config),
+                "timestamp": TIMESTAMP,
             }
             torch.save(checkpoint, fname_template.format(epoch))
 
@@ -212,7 +215,8 @@ def test(dataloader, network, criterion, config):
     phase = "test"
     epoch = config.starting_epoch
 
-    writer = SummaryWriter(log_dir=config.test_log_dir)
+    # FIXME: temporary solution. Tensorboard logging in test will be removed
+    writer = SummaryWriter(log_dir=tempfile.mkdtemp())
     progress_printer = ProgressPrinter(
         config, progress_template="Loss: {:.3f} - PSNR: {:.3f}"
     )
@@ -278,6 +282,10 @@ def test(dataloader, network, criterion, config):
     )
     writer.add_scalar("Metrics/Loss/" + phase, epoch_loss)
     writer.add_scalar("Metrics/PSNR/" + phase, epoch_psnr)
+    save_dict(
+        {"param": config.test_param, "loss": epoch_loss, "psnr": epoch_psnr},
+        os.path.join(directory_structure.CURRENT_TEST_EXP_PATH, "results.json"),
+    )
 
     print()
 
