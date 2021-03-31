@@ -17,7 +17,7 @@ from ml_project.utils import (
     create_figure,
     pad,
     psnr_from_mse,
-    save_figure,
+    save_test_image,
 )
 
 
@@ -254,11 +254,10 @@ def test(dataloader, network, criterion, config):
         running_psnr.update(psnr, batch_size)
 
         # Iteration logging
-        fig = create_figure([data.sample, data.target, output], transposed=True)
         path = os.path.join(
             directory_structure.TEST_IMAGES_DIR, "img_" + str(batch_index) + ".jpg"
         )
-        save_figure(fig, path)
+        save_test_image([data.sample, data.target, output], path)
 
         progress_printer.show_epoch_progress(
             running_loss.last_value, running_psnr.last_value

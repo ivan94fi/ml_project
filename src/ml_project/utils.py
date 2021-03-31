@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import torch.nn.functional as F
+from PIL import Image
 from torchvision.utils import make_grid
 from tqdm import tqdm
 
@@ -180,10 +181,19 @@ def create_figure(images, title=None, transposed=False):
     return fig
 
 
-def save_figure(fig, path):
-    """Save a matplotlib figure with some default parameters."""
-    fig.savefig(path, transparent=True, bbox_inches="tight", pad_inches=0)
-    plt.close(fig)
+def save_test_image(tensors, path):
+    """Save an iterable of tensors as an image, concatenating along width."""
+    with torch.no_grad():
+        _, c, h, w = tensors[0].shape
+
+        image = torch.empty(h, w * len(tensors), c)
+        for i, tensor in enumerate(tensors):
+            tensor = tensor.cpu().clone().squeeze()
+            image[:, i * w : (i + 1) * w, :] = prepare_for_imshow(tensor, 0.5)
+
+        image = image.mul(255.0).to(torch.uint8)
+        image = Image.fromarray(image.numpy())
+        image.save(path)
 
 
 class MetricTracker:
