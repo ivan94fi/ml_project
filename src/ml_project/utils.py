@@ -183,6 +183,7 @@ def create_figure(images, title=None, transposed=False):
 def save_figure(fig, path):
     """Save a matplotlib figure with some default parameters."""
     fig.savefig(path, transparent=True, bbox_inches="tight", pad_inches=0)
+    plt.close(fig)
 
 
 class MetricTracker:
