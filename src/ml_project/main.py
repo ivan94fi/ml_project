@@ -189,12 +189,8 @@ elif config.command == "test":
     # Just to print the epoch used in logging
     config.starting_epoch = checkpoint["epoch"]
 
-    if config.noise_type == "textual":
-        criterion = torch.nn.L1Loss()
-    if config.noise_type == "random_inpulse":
-        criterion = AnnealedL0Loss(config.epochs)
-    else:
-        criterion = torch.nn.MSELoss()
+    # Criterion is always MSE, because at test time I only want PSNR
+    criterion = torch.nn.MSELoss()
 
     test_loop_start = time.time()
     test(test_dataloader, net, criterion, config)

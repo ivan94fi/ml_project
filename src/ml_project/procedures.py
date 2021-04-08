@@ -213,7 +213,6 @@ def test(dataloader, network, criterion, config):
 
     batch_size = 1
     phase = "test"
-    epoch = config.starting_epoch
 
     progress_printer = ProgressPrinter(
         config, progress_template="Loss: {:.3f} - PSNR: {:.3f}"
@@ -241,16 +240,10 @@ def test(dataloader, network, criterion, config):
             output = output[:, :, :original_width, :original_height]
             target = target[:, :, :original_width, :original_height]
 
-            if isinstance(criterion, AnnealedL0Loss):
-                loss = criterion(output, target, epoch)
-            else:
-                loss = criterion(output, target)
+            loss = criterion(output, target)
 
         running_loss.update(loss.item(), batch_size)
-        if isinstance(criterion, torch.nn.MSELoss):
-            psnr = psnr_from_mse(running_loss.last_value)
-        else:
-            psnr = calculate_psnr(output.detach(), target.detach())
+        psnr = psnr_from_mse(running_loss.last_value)
         running_psnr.update(psnr, batch_size)
 
         # Iteration logging
@@ -275,7 +268,7 @@ def test(dataloader, network, criterion, config):
         )
     )
     save_dict(
-        {"param": config.test_param, "loss": epoch_loss, "psnr": epoch_psnr},
+        {"param": config.test_param, "psnr": epoch_psnr},
         os.path.join(directory_structure.CURRENT_TEST_EXP_PATH, "results.json"),
     )
 
