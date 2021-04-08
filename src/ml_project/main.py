@@ -7,7 +7,6 @@ import torch
 from torch.utils.data import DataLoader
 
 from ml_project.config_parser import (
-    check_directory_structure,
     define_parser,
     directory_structure,
     get_config,
@@ -29,8 +28,6 @@ complete_start = time.time()
 
 parser = define_parser()
 config = get_config(parser)
-
-check_directory_structure(config)
 
 print("Selected configuration")
 print("=" * 60)

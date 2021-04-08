@@ -535,6 +535,9 @@ def override_noise_params(noise_type, phase):
 
 def validate_config(config):
     """Perform additional checks on the configuration."""
+    if config.root_dir != directory_structure.ROOT_DIR:
+        directory_structure.update(config.root_dir)
+
     if config.command == "train":
 
         if config.train_params is None:
@@ -555,7 +558,18 @@ def validate_config(config):
             print("Validation dataset root picked from environment variable")
 
         config.timestamp = TIMESTAMP
+
+        directory_structure.create_tree()
+
     elif config.command == "test":
+        train_config = get_train_config(config)
+
+        # create structure as soon as possible as it is needed after
+        directory_structure.create_test_tree(train_config["timestamp"])
+
+        save_train_config_if_needed(train_config)
+
+        config = _override_train_config(config, train_config)
 
         if not os.path.isfile(config.test_checkpoint):
             raise ValueError("The checkpoint path is invalid.")
@@ -569,54 +583,48 @@ def validate_config(config):
             )
             print("Test dataset root picked from environment variable")
 
-    return config
-
-
-def check_directory_structure(config):
-    """Ensure that the right directory structure is used."""
-    if config.root_dir != directory_structure.ROOT_DIR:
-        directory_structure.update(config.root_dir)
-
-    if config.command == "train":
-        directory_structure.create_tree()
-
-    if config.command == "test":
-
-        checkpoint = torch.load(config.test_checkpoint, map_location="cpu")
-
-        try:
-            train_config = checkpoint["config"]
-        except KeyError as e:
-            if config.train_config is None:
-                raise ValueError(
-                    "Unable to load the training configuration for this checkpoint. "
-                    "Either specify the right file in the command or use a checkpoint "
-                    " with a 'config' field."
-                ) from e
-            train_config = read_dict(config.train_config)
-
-        directory_structure.create_test_tree(train_config["timestamp"])
-
-        train_config_file = os.path.join(
-            directory_structure.TEST_BASE_DIR, "train_config.json"
-        )
-        if os.path.isfile(train_config_file):
-            existent_train_config = read_dict(train_config_file)
-            existent_train_config["train_params"] = tuple(
-                existent_train_config["train_params"]
-            )
-            if train_config != existent_train_config:
-                raise ValueError("Configurations not matching.")
-        else:
-            save_dict(train_config, path=train_config_file)
-
         save_dict(config, directory_structure.TEST_CONFIG_PATH)
 
         _remove_previous_test_runs(config)
 
-        config = _override_train_config(config, train_config)
-
     return config
+
+
+def save_train_config_if_needed(train_config):
+    """Save current train configuration if needed."""
+    train_config_file = os.path.join(
+        directory_structure.TEST_BASE_DIR, "train_config.json"
+    )
+    if os.path.isfile(train_config_file):
+        # if the train config for this train run already exists,
+        # make sure that it is the same as the current
+        existent_train_config = read_dict(train_config_file)
+        existent_train_config["train_params"] = tuple(
+            existent_train_config["train_params"]
+        )
+        if train_config != existent_train_config:
+            raise ValueError("Configurations not matching.")
+    else:
+        # else, just save the train config
+        save_dict(train_config, path=train_config_file)
+
+
+def get_train_config(config):
+    """Read the train config from the checkpoint or cli."""
+    checkpoint = torch.load(config.test_checkpoint, map_location="cpu")
+
+    try:
+        train_config = checkpoint["config"]
+    except KeyError as e:
+        if config.train_config is None:
+            raise ValueError(
+                "Unable to load the training configuration for this checkpoint. "
+                "Either specify the right file in the command or use a checkpoint "
+                "with a 'config' field."
+            ) from e
+        train_config = read_dict(config.train_config)
+
+    return train_config
 
 
 def _remove_previous_test_runs(config):
@@ -649,8 +657,9 @@ def _override_train_config(test_config, train_config):
             warnings.warn(
                 "Overriding {}='{}' with the value '{}', "
                 "used for training the checkpoint.".format(
-                    key, test_config[key], train_config[key]
-                )
+                    key, getattr(test_config, key), train_config[key]
+                ),
+                stacklevel=2,
             )
             setattr(test_config, key, train_config[key])
 
