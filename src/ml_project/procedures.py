@@ -16,6 +16,7 @@ from ml_project.utils import (
     calculate_psnr,
     create_figure,
     pad,
+    unpad,
     psnr_from_mse,
     save_test_image,
 )
@@ -132,6 +133,8 @@ def train(  # noqa: C901
                 # Iteration logging
                 global_step = epoch * config.batch_numbers[phase] + batch_index
                 if image_logger.should_log():
+                    if phase == "val":
+                        data = unpad(data, (original_width, original_height))
                     tensors = [data.sample, data.target, output]
                     fig = create_figure(tensors, title="epoch:" + str(epoch))
                     writer.add_figure("input-target-output/" + phase, fig, global_step)
@@ -250,6 +253,7 @@ def test(dataloader, network, criterion, config):
         path = os.path.join(
             directory_structure.TEST_IMAGES_DIR, "img_" + str(batch_index) + ".jpg"
         )
+        data = unpad(data, (original_width, original_height))
         save_test_image([data.sample, data.target, output], path)
 
         progress_printer.show_epoch_progress(

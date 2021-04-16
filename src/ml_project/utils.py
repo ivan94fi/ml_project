@@ -98,13 +98,13 @@ def pad(data, divisor=32, mode="reflect"):
 
     The input data is expected to be 4-dimensional, with the first dimension of
     size 1. The first and second dimension are left untouched, pad is applied to
-    the last two dimension if necessary.
+    the last two dimensions if necessary.
 
     """
     if data.sample.shape[0] != 1:
         raise ValueError("The first dimension must be of size 1")
-    width = data.sample.shape[2]
-    height = data.sample.shape[3]
+
+    _, _, width, height = data.sample.shape
 
     if width % divisor != 0 or height % divisor != 0:
         padded_width = math.ceil(width / divisor) * divisor
@@ -113,7 +113,35 @@ def pad(data, divisor=32, mode="reflect"):
         sample = F.pad(data.sample, pad_amount, mode=mode)
         target = F.pad(data.target, pad_amount, mode=mode)
         data = TrainingPair(sample=sample, target=target)
+
     return data
+
+
+def unpad(data, shape):
+    """
+    Unpad the training data to the desired shape.
+
+    The input data is expected to be 4-dimensional, with the first dimension of
+    size 1. The first and second dimension are left untouched, unpadding is
+    applied to the last two dimensions.
+
+    The TrainingSample instance is supposed to be padded at right and bottom
+    borders, so it is unpadded accordingly.
+
+    """
+    if data.sample.shape[0] != 1:
+        raise ValueError("The first dimension must be of size 1")
+
+    target_width, target_height = shape
+    _, _, width, height = data.sample.shape
+
+    if width == target_width and height == target_height:
+        return data
+
+    unpadded_sample = data.sample[:, :, :target_width, :target_height]
+    unpadded_target = data.target[:, :, :target_width, :target_height]
+
+    return TrainingPair(sample=unpadded_sample, target=unpadded_target)
 
 
 def get_gaussian_kernel(stddev, dimensions=1, size=None, limit=4):
