@@ -259,7 +259,7 @@ def define_parser():
     noise_group.add_argument(
         "--noise-type",
         default="gaussian",
-        choices=["gaussian", "poisson", "textual", "random_inpulse"],
+        choices=["gaussian", "poisson", "textual", "random_impulse"],
         type=str,
         help="The type of noise to add to the examples/targets",
     )
@@ -501,7 +501,7 @@ default_noise_params = {
     "gaussian": {"train": (0.0, 50), "val": 25, "test": 25},
     "poisson": {"train": (0.0, 50), "val": 30, "test": 30},
     "textual": {"train": (0.0, 0.5), "val": 0.25, "test": 0.25},
-    "random_inpulse": {"train": (0.0, 0.95), "val": 0.7, "test": 0.7},
+    "random_impulse": {"train": (0.0, 0.95), "val": 0.7, "test": 0.7},
 }
 
 

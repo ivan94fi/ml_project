@@ -101,7 +101,7 @@ if config.command == "train":  # noqa: C901
 
     if config.noise_type == "textual":
         criterion = torch.nn.L1Loss()
-    elif config.noise_type == "random_inpulse":
+    elif config.noise_type == "random_impulse":
         criterion = AnnealedL0Loss(config.epochs)
     else:
         criterion = torch.nn.MSELoss()

@@ -325,9 +325,9 @@ class TextualNoise:
         self.fonts = self._read_fonts()
 
 
-class RandomInpulseNoise:
+class RandomImpulseNoise:
     """
-    Custom transform to add random valued inpulse noise.
+    Custom transform to add random valued impulse noise.
 
     Pixels in input tensor are replaced with a random color with probability
     p and retain their color with probability 1-p. The random color is sampled
@@ -344,7 +344,7 @@ class RandomInpulseNoise:
         self.p = p
 
     def __call__(self, sample):
-        """Add random valued inpulse noise to the input sample."""
+        """Add random valued impulse noise to the input sample."""
         # Pixels values should be changed where mask is True
         mask = torch.rand(sample.shape[1], sample.shape[2])
         mask = mask.lt(self.p)

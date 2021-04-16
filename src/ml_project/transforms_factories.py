@@ -6,7 +6,7 @@ from ml_project.transforms import (
     BrownGaussianNoise,
     ComposeCopies,
     PoissonNoise,
-    RandomInpulseNoise,
+    RandomImpulseNoise,
     ResizeIfTooSmall,
     TextualNoise,
     WhiteGaussianNoise,
@@ -29,8 +29,8 @@ class NoiseTransformCreator:
             return _construct_poisson_noise
         if noise_type == "textual":
             return _construct_textual_noise
-        if noise_type == "random_inpulse":
-            return _construct_random_inpulse_noise
+        if noise_type == "random_impulse":
+            return _construct_random_impulse_noise
 
         raise ValueError("Noise type unknown")
 
@@ -91,13 +91,13 @@ def _construct_textual_noise(config):
     return noise_transform
 
 
-def _construct_random_inpulse_noise(config):
+def _construct_random_impulse_noise(config):
     noise_transform = {}
     if config.command == "train":
-        noise_transform["train"] = lambda: RandomInpulseNoise(p=config.train_params)
-        noise_transform["val"] = lambda: RandomInpulseNoise(p=config.val_param)
+        noise_transform["train"] = lambda: RandomImpulseNoise(p=config.train_params)
+        noise_transform["val"] = lambda: RandomImpulseNoise(p=config.val_param)
     else:
-        noise_transform["test"] = lambda: RandomInpulseNoise(p=config.test_param)
+        noise_transform["test"] = lambda: RandomImpulseNoise(p=config.test_param)
 
     return noise_transform
 
