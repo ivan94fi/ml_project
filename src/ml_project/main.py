@@ -153,6 +153,8 @@ if config.command == "train":  # noqa: C901
 ###############################################################################
 
 elif config.command == "test":
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
     print("Restore checkpoint " + config.test_checkpoint)
     checkpoint = torch.load(config.test_checkpoint)
 
