@@ -86,24 +86,19 @@ class UNet(nn.Module):
 
     """
 
+    expand_strategies = ["upsample", "transpose_convolution"]
+
     def __init__(
         self, in_channels=3, out_channels=3, expand_strategy="upsample", slope=0.1
     ):
         super().__init__()
 
-        self.expand_layers = {
-            "upsample": lambda: nn.Upsample(scale_factor=2, mode="nearest"),
-            "transpose_convolution": lambda: nn.ConvTranspose2d(
-                96, 96, 3, stride=2, padding=1, output_padding=1
-            ),
-        }
-
-        if expand_strategy not in self.expand_layers:
+        if expand_strategy not in self.expand_strategies:
             raise ValueError(
-                "Expand strategy should be one of: {}".format(
-                    list(self.expand_layers.keys)
-                )
+                "Expand strategy should be one of: {}".format(self.expand_strategies)
             )
+
+        self.expand_strategy = expand_strategy
 
         # Contracting path - Encoder
 
@@ -146,7 +141,7 @@ class UNet(nn.Module):
         # Expanding path - Decoder
 
         # UPSAMPLE5
-        self.upsample5 = self._get_upsample_layer(expand_strategy)
+        self.upsample5 = self._get_upsample_layer(48, 48)
 
         # CONCAT5 (with POOL4) - implemented in self.forward
 
@@ -154,7 +149,7 @@ class UNet(nn.Module):
         self.dec_block1 = nn.Sequential(
             ConvRelu(96, 96, 3, stride=1, padding=1, negative_slope=slope),
             ConvRelu(96, 96, 3, stride=1, padding=1, negative_slope=slope),
-            self._get_upsample_layer(expand_strategy),
+            self._get_upsample_layer(96, 96),
         )
 
         # CONCAT4 (with POOL3) - implemented in self.forward
@@ -163,7 +158,7 @@ class UNet(nn.Module):
         self.dec_block2 = nn.Sequential(
             ConvRelu(144, 96, 3, stride=1, padding=1, negative_slope=slope),
             ConvRelu(96, 96, 3, stride=1, padding=1, negative_slope=slope),
-            self._get_upsample_layer(expand_strategy),
+            self._get_upsample_layer(96, 96),
         )
 
         # CONCAT3 (with POOL2) - implemented in self.forward
@@ -172,7 +167,7 @@ class UNet(nn.Module):
         self.dec_block3 = nn.Sequential(
             ConvRelu(144, 96, 3, stride=1, padding=1, negative_slope=slope),
             ConvRelu(96, 96, 3, stride=1, padding=1, negative_slope=slope),
-            self._get_upsample_layer(expand_strategy),
+            self._get_upsample_layer(96, 96),
         )
 
         # CONCAT2 (with POOL1) - implemented in self.forward
@@ -181,7 +176,7 @@ class UNet(nn.Module):
         self.dec_block4 = nn.Sequential(
             ConvRelu(144, 96, 3, stride=1, padding=1, negative_slope=slope),
             ConvRelu(96, 96, 3, stride=1, padding=1, negative_slope=slope),
-            self._get_upsample_layer(expand_strategy),
+            self._get_upsample_layer(96, 96),
         )
 
         # CONCAT1 (with input) - implemented in self.forward
@@ -204,9 +199,16 @@ class UNet(nn.Module):
         with torch.no_grad():
             last_layer_weights.normal_(0, 1.0 / math.sqrt(last_layer_fan_in))
 
-    def _get_upsample_layer(self, expand_strategy):
-        """Return a newly constructed layer object."""
-        return self.expand_layers[expand_strategy]()
+    def _get_upsample_layer(self, in_channels=None, out_channels=None):
+        """Construct the appropriate upsampling layer."""
+        if self.expand_strategy == "upsample":
+            return nn.Upsample(scale_factor=2, mode="nearest")
+        elif self.expand_strategy == "transpose_convolution":
+            return nn.ConvTranspose2d(
+                in_channels, out_channels, 3, stride=2, padding=1, output_padding=1
+            )
+        else:
+            raise ValueError("Unkown expand strategy")
 
     def forward(self, x):
         """Execute forward pass through the network."""
